@@ -1,2 +1,2 @@
 
-prinf("hello world %d ", 3);
+printf("hello world %d ", 3);
