@@ -16,7 +16,14 @@
  */
 SymbolTable *createSymbolTable(char *symbol, int address) {
 	int i;
-	SymbolTable *symbolTable = calloc(1, sizeof(SymbolTable));
+	SymbolTable *symbolTable = malloc(sizeof(SymbolTable));
+	/*
+	In case no memory could be allocated a null pointer will be returned
+	instead.
+	*/
+	if (symbolTable == NULL) {
+		return NULL;
+	}
 
 	symbolTable->symbol = symbol; /* Initializing the symbol. */
 	symbolTable->address = address; /* Initializing the address. */
@@ -33,7 +40,7 @@ SymbolTable *createSymbolTable(char *symbol, int address) {
 /**
  * Adds the given attribute code to the given label.
  */
-char addAttribute(SymbolTable *symbolTable, char attributeCode) {
+unsigned char addAttribute(SymbolTable *symbolTable, unsigned char attributeCode) {
 	int i;
 	for (i = 0; i < ATTRS_PER_LABEL; ++i) {
 		if (symbolTable->attributes[i] == EMPTY) {

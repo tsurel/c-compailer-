@@ -4,6 +4,7 @@
 #include "utils.h"
 #include "symboltable.h"
 #include "errorhandler.h"
+#include "operations.h"
 
 /* __Temporary test code__ */
 /* __The following just prints the first character of every line__ */
@@ -11,6 +12,9 @@ void assemble(FILE *file) {
 	char c;
 	int i;
 	SymbolTable *symbol = createSymbolTable("blah", 166);
+	initasmOperations();
+	printasm();
+	clearasmOperations();
 
 	for (i = 0; i < 5; ++i) {
 		if (addAttribute(symbol, CODE) == ERROR)

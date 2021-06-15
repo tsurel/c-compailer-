@@ -20,10 +20,10 @@ typedef struct symbolt SymbolTable;
 struct symbolt {
 	char *symbol; /* Stores the symbol of that label. */
 	int address; /* Stores the memory address of that label. */
-	char attributes[ATTRS_PER_LABEL]; /* Stores the attributes codes of that label. */
-	struct symbolt* next; /* A pointer to the next label. */
+	unsigned char attributes[ATTRS_PER_LABEL]; /* Stores the attributes codes of that label. */
+	struct symbolt *next; /* A pointer to the next label. */
 };
 
 SymbolTable *createSymbolTable(char *symbol, int address);
-char addAttribute(SymbolTable *symbolTable ,char attributeCode);
+unsigned char addAttribute(SymbolTable *symbolTable ,unsigned char attributeCode);
 void freeSymbolTable(SymbolTable *symbolTable);
