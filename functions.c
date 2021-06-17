@@ -11,9 +11,14 @@
 void assemble(FILE *file) {
 	char c;
 	int i;
+	Operation *op;
 	SymbolTable *symbol = createSymbolTable("blah", 166);
 	initasmOperations();
+	op = searchKeyword("add");
 	printasm();
+	printf("\n---%s\t%d\t%d\t%d\n", op->keyword, op->type, op->funct, op->opcode);
+	if (searchKeyword("blah") == NULL)
+		printf("%s\n", "SUCCESS");
 	clearasmOperations();
 
 	for (i = 0; i < 5; ++i) {

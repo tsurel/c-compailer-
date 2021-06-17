@@ -19,7 +19,7 @@ static Operation *hashTable[SIZE];
 /**
  * Creates and return an hash value based on the given string.
  */
-unsigned hash(char *str) {
+unsigned hash(const char *str) {
 	unsigned hash = 0; /* Variable to store the hash value. */
 	int length = strlen(str); /* Length of the given string. */
 	int i;
@@ -28,6 +28,10 @@ unsigned hash(char *str) {
 	 * The following hash algorithm is relatively simple and will not necessarily
 	 * generate a unique value for every string in existence, but it is enough for
 	 * this assembler.
+	 * 
+	 * This hash was specifically selected for the reason that the hash table
+	 * created by it (for this assembler) will not have a row that is longer than
+	 * two nodes.
 	*/
 	for (i = 0; i < length; ++i) {
 		hash += str[i] * (length - i) + 2;
@@ -37,12 +41,38 @@ unsigned hash(char *str) {
 }
 
 /**
- * Uses an hash function to relate a string value to an index in the hash table.
+ * Uses the hash function to relate a string value to an index in the hash table.
  * Used by this assembler to relate an assembly code-word to its relevant data via
  * the hash table.
  */
-unsigned getIndex(char *keyword) {
+unsigned getIndex(const char *keyword) {
 	return (hash(keyword) % SIZE); /* The index is then returned. */
+}
+
+/**
+ * Uses the hash function to get the index in which the given keyword is stored.
+ * If there was a collision at a certain index this function would search trough
+ * the operations container list.
+ * The given string is always compared to the strings in the hash table so there
+ * will not be a case in which a random string with the same hash value would be
+ * recognized as a code-word.
+ * Returns a pointer to an operation container node, if the given parameter is a
+ * code-word, otherwise a null pointer.
+ */
+Operation *searchKeyword(const char *keyword) {
+	/* Getting the hashed index of the given parameter. */
+	Operation *operation = hashTable[getIndex(keyword)];
+
+	/* Validating the given parameter. */
+	while (operation != NULL) {
+		if (strcmp(keyword, operation->keyword) == 0)
+			return operation;
+		/* The given parameter could be the next code-word in the hash table. */
+		operation = operation->next;
+	}
+
+	/* The given parameter is not a valid assembly code-word. */
+	return NULL;
 }
 
 /**

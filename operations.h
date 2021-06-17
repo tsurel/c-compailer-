@@ -22,8 +22,9 @@ typedef struct op {
 	struct op *next; /* Points to the next operation with the same hash value. */
 } Operation;
 
-unsigned hash(char *str);
-unsigned getIndex(char *keyword);
+unsigned hash(const char *str);
+unsigned getIndex(const char *keyword);
+Operation *searchKeyword(const char *keyword);
 unsigned char insert(char *keyword, unsigned char type, unsigned char funct, unsigned char opcode);
 unsigned char initasmOperations();
 void clearasmOperations();

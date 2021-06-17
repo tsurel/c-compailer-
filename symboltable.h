@@ -16,13 +16,12 @@
  * This structure is used to map all labels in the assembly code.
  * Every node of this structure represents a label.
  */
-typedef struct symbolt SymbolTable;
-struct symbolt {
+typedef struct symbolt {
 	char *symbol; /* Stores the symbol of that label. */
 	int address; /* Stores the memory address of that label. */
 	unsigned char attributes[ATTRS_PER_LABEL]; /* Stores the attributes codes of that label. */
 	struct symbolt *next; /* A pointer to the next label. */
-};
+} SymbolTable;
 
 SymbolTable *createSymbolTable(char *symbol, int address);
 unsigned char addAttribute(SymbolTable *symbolTable ,unsigned char attributeCode);
