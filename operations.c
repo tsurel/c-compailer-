@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "operations.h"
-#include "errorhandler.h"
 
 /**
  * Contains a collection of utility and initialization functions for the operations
@@ -14,7 +13,7 @@
  * Better than using a regular array to store all the assembly code-words
  * because it can be accessed more quickly.
  */
-static Operation *hashTable[SIZE];
+static Operation *opTable[SIZE];
 
 /**
  * Creates and return an hash value based on the given string.
@@ -61,7 +60,7 @@ unsigned getIndex(const char *keyword) {
  */
 Operation *searchKeyword(const char *keyword) {
 	/* Getting the hashed index of the given parameter. */
-	Operation *operation = hashTable[getIndex(keyword)];
+	Operation *operation = opTable[getIndex(keyword)];
 
 	/* Validating the given parameter. */
 	while (operation != NULL) {
@@ -83,7 +82,7 @@ Operation *searchKeyword(const char *keyword) {
  * At the end of the process, this function will return a code that tells if the
  * insertion was successful or not.
  */
-unsigned char insert(char *keyword, unsigned char type, unsigned char funct, unsigned char opcode) {
+Code insert(char *keyword, unsigned char type, unsigned char funct, unsigned char opcode) {
 	unsigned index;
 	/* Initializing the operations container. */
 	Operation *operation = malloc(sizeof(Operation));
@@ -103,15 +102,15 @@ unsigned char insert(char *keyword, unsigned char type, unsigned char funct, uns
 	/* Relating an index for that code-word. */
 	index = getIndex(keyword);
 	/* Inserting the operations container into the hash table. */
-	if (hashTable[index] != NULL) {
+	if (opTable[index] != NULL) {
 		/* Handling a collision. */
-		temp = hashTable[index];
+		temp = opTable[index];
 		while (temp->next != NULL)
 			temp = temp->next;
 		temp->next = operation;
 	} else {
 		/* No collision. */
-		hashTable[index] = operation;
+		opTable[index] = operation;
 	}
 
 	return SUCCESS; /* The insertion was successful. */
@@ -123,7 +122,7 @@ unsigned char insert(char *keyword, unsigned char type, unsigned char funct, uns
  * At the end of the process, this function will return a code that tells if the
  * initialization was successful or not.
  */
-unsigned char initasmOperations() {
+Code initasmOperations() {
 	const unsigned char breakR = 5; /* funct code pattern break for R type code-words. */
 	const unsigned char rCount = 8; /* Number of R type code-words. */
 	const unsigned char iopcodeStart = 10; /* I type code-words opcode beginning of pattern. */
@@ -132,7 +131,7 @@ unsigned char initasmOperations() {
 	const unsigned char JCount = 4; /* Number of J type code-words. */
 	const unsigned char stopopcode = 63; /* The opcode for the "stop" code-word. */
 	int index; /* Used by the loops. */
-	unsigned char code = SUCCESS; /* initializing the return code. */
+	Code code = SUCCESS; /* initializing the return code. */
 	/*
 	 * The following three string arrays contain all the assembly code-words
 	 * sorted by their type.
@@ -151,7 +150,7 @@ unsigned char initasmOperations() {
 	 */
 
 	/* Sets all indexes in the array of the hash table to a null pointer. */
-	for (index = 0; index < SIZE; hashTable[index++] = NULL);
+	for (index = 0; index < SIZE; opTable[index++] = NULL);
 
 	/* Inserts all R type code-words using a funct code pattern. */
 	for (index = 0; index < breakR && code == SUCCESS; index++)
@@ -182,9 +181,9 @@ void clearasmOperations() {
 
 	for (i = 0; i < SIZE; i++)
 		/* Also clears all nodes formed by collisions. */
-		while (hashTable[i] != NULL) {
-			temp = hashTable[i];
-			hashTable[i] = hashTable[i]->next;
+		while (opTable[i] != NULL) {
+			temp = opTable[i];
+			opTable[i] = opTable[i]->next;
 			free(temp);
 		}
 }
@@ -194,7 +193,7 @@ void printasm() {
 	Operation *temp;
 	for (i = 0; i < SIZE; i++) {
 		printf("[%d]:\n", i);
-		temp = hashTable[i];
+		temp = opTable[i];
 		while (temp != NULL) {
 			printf("\t%s: type = %d, funct = %d, opcode = %d\n", temp->keyword, temp->type, temp->funct, temp->opcode);
 			temp = temp->next;

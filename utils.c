@@ -15,3 +15,16 @@ void skipln(FILE *stream) {
 	/* Reading every digit from the provided stream until hitting a new line or an end of file character. */
 	for (c = fgetc(stream); c != '\n' && c != EOF; c = fgetc(stream));
 }
+
+/**
+ * Copies a sub-string from the source parameter into the destination parameter,
+ * starting from the given start index until the given end index (included).
+ */
+void subString(char *dest, const char *src, int start, int end) {
+	int i = 0; /* The index for the destination*/
+
+	while (start <= end) {
+		/* Copying every character while incrementing the indexes. */
+		dest[i++] = src[start++];
+	}
+}

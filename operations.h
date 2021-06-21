@@ -1,5 +1,7 @@
 #pragma once
 
+#include "errorhandler.h"
+
 #define R 1 /* Operation code for type R. */
 #define I 2 /* Operation code for type I. */
 #define J 3 /* Operation code for type J. */
@@ -25,7 +27,7 @@ typedef struct op {
 unsigned hash(const char *str);
 unsigned getIndex(const char *keyword);
 Operation *searchKeyword(const char *keyword);
-unsigned char insert(char *keyword, unsigned char type, unsigned char funct, unsigned char opcode);
-unsigned char initasmOperations();
+Code insert(char *keyword, unsigned char type, unsigned char funct, unsigned char opcode);
+Code initasmOperations();
 void clearasmOperations();
 void printasm();

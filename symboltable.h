@@ -1,5 +1,7 @@
 #pragma once
 
+#include "errorhandler.h"
+
 /**
  * An header file for the symbol table data structure.
  */
@@ -24,5 +26,5 @@ typedef struct symbolt {
 } SymbolTable;
 
 SymbolTable *createSymbolTable(char *symbol, int address);
-unsigned char addAttribute(SymbolTable *symbolTable ,unsigned char attributeCode);
+Code addAttribute(SymbolTable *symbolTable ,unsigned char attributeCode);
 void freeSymbolTable(SymbolTable *symbolTable);
