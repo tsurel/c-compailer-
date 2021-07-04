@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SYMBOLTABLE_H
+#define SYMBOLTABLE_H
 
 #include "errorhandler.h"
 
@@ -28,3 +29,5 @@ typedef struct symbolt {
 SymbolTable *createSymbolTable(char *symbol, int address);
 Code addAttribute(SymbolTable *symbolTable ,unsigned char attributeCode);
 void freeSymbolTable(SymbolTable *symbolTable);
+
+#endif

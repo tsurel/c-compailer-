@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "functions.h"
+#include "converter.h"
 #include "errorhandler.h"
 
 /**

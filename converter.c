@@ -1,10 +1,20 @@
 #include <stdio.h>
 
-#include "functions.h"
+#include "converter.h"
 #include "utils.h"
 #include "symboltable.h"
 #include "errorhandler.h"
 #include "operations.h"
+
+/**
+ * The following functions should not be used outside of this translation unit.
+ */
+Code map(FILE *file, SymbolTable *symboltable);
+void convert(FILE *file, SymbolTable *symboltable);
+char *assembleR(Operation *op, char rs, char rt, char rd);
+char *assembleI(Operation *op, char rs, char rt, short immed);
+char *assembleJ(Operation *op, unsigned char reg, unsigned address);
+/* TODO: Implement the assembler itself using the functions above. */
 
 /* __Temporary test code__ */
 /* __The following just prints the first character of every line__ */

@@ -9,6 +9,13 @@
  */
 
 /**
+ * The following functions should not be used outside of this translation unit.
+ */
+unsigned hash(const char *str);
+unsigned getIndex(const char *keyword);
+Code insert(char *keyword, unsigned char type, unsigned char funct, unsigned char opcode);
+
+/**
  * An array of operations container data structures, AKA the hash table.
  * Better than using a regular array to store all the assembly code-words
  * because it can be accessed more quickly.
@@ -145,11 +152,14 @@ Code initasmOperations() {
 	};
 
 	/*
-	 * For all following insertions if one fails all no additional insertions
+	 * For all following insertions if one fails no additional insertions
 	 * will be made.
 	 */
 
-	/* Sets all indexes in the array of the hash table to a null pointer. */
+	/*
+	 * Sets all indexes in the array of the hash table to a null pointer to avoid an 
+	 * unnecessary collision handling.
+	 */
 	for (index = 0; index < SIZE; opTable[index++] = NULL);
 
 	/* Inserts all R type code-words using a funct code pattern. */

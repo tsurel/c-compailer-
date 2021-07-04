@@ -1,12 +1,13 @@
-#pragma once
+#ifndef OPERATIONS_H
+#define OPERATIONS_H
 
 #include "errorhandler.h"
 
 #define R 1 /* Operation code for type R. */
 #define I 2 /* Operation code for type I. */
 #define J 3 /* Operation code for type J. */
-#define FUNCT_COUNT 5
-#define NO_FUNCT 0
+#define FUNCT_COUNT 5 /* Number of existing funct codes. */
+#define NO_FUNCT 0 /* For operations that do not have funct code. */
 
 #define SIZE 27 /* Number of assembly operations. */
 
@@ -24,10 +25,9 @@ typedef struct op {
 	struct op *next; /* Points to the next operation with the same hash value. */
 } Operation;
 
-unsigned hash(const char *str);
-unsigned getIndex(const char *keyword);
 Operation *searchKeyword(const char *keyword);
-Code insert(char *keyword, unsigned char type, unsigned char funct, unsigned char opcode);
 Code initasmOperations();
 void clearasmOperations();
 void printasm();
+
+#endif
