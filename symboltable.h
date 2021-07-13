@@ -1,10 +1,10 @@
 #ifndef SYMBOLTABLE_H
 #define SYMBOLTABLE_H
 
-#include "errorhandler.h"
+#include "asmutils.h"
 
 /**
- * An header file for the symbol table data structure.
+ * An header file for the symbol table translation unit.
  */
 
 #define EMPTY    0 /* An empty attribute. */
@@ -26,7 +26,7 @@ typedef struct symbolt {
 	struct symbolt *next; /* A pointer to the next label. */
 } SymbolTable;
 
-SymbolTable *createSymbolTable(char *symbol, int address);
+SymbolTable *createSymbol(char *symbol, int address);
 Code addAttribute(SymbolTable *symbolTable ,unsigned char attributeCode);
 void freeSymbolTable(SymbolTable *symbolTable);
 

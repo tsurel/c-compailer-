@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "symboltable.h"
+#include "asmutils.h"
 
 /**
  * Contains a collection of utility functions for the symbol
@@ -14,7 +15,7 @@
  * This function returns a pointer to the new symbol table node or a null
  * pointer if it failed to create it.
  */
-SymbolTable *createSymbolTable(char *symbol, int address) {
+SymbolTable *createSymbol(char *symbol, int address) {
 	int i;
 	SymbolTable *symbolTable = malloc(sizeof(SymbolTable));
 	/*

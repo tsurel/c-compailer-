@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #include "converter.h"
-#include "errorhandler.h"
+#include "asmutils.h"
 
 /**
 Assembles the content of the source files, provided as arguments, from assembly code into machine code.
@@ -24,7 +24,7 @@ int main(int argc, char const *argv[]) {
 		/* Checking if the file extension is valid. */
 		if (isValid(argv[i]) == ERROR) {
 			/* Skipping the file if it is not an assembly source code file. */
-			printf("%s%s\n", "Invalid file extension: ", argv[i]);
+			printf("%s%s\n", "Invalid file type: ", argv[i]);
 			continue;
 		}
 

@@ -3,7 +3,7 @@
 #include "utils.h"
 
 /**
- * Contains a collection of general utility method that can be
+ * Contains a collection of general utility functions that can be
  * used anywhere in the program.
  */
 

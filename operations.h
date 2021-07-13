@@ -1,7 +1,11 @@
 #ifndef OPERATIONS_H
 #define OPERATIONS_H
 
-#include "errorhandler.h"
+#include "asmutils.h"
+
+/**
+ * An header file for the operations container (operations) translation unit.
+ */
 
 #define R 1 /* Operation code for type R. */
 #define I 2 /* Operation code for type I. */

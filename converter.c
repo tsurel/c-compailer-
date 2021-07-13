@@ -3,8 +3,13 @@
 #include "converter.h"
 #include "utils.h"
 #include "symboltable.h"
-#include "errorhandler.h"
+#include "asmutils.h"
 #include "operations.h"
+
+/**
+ * The converter translation unit is responsible for managing the assembling
+ * process.
+ */
 
 /**
  * The following functions should not be used outside of this translation unit.
@@ -22,7 +27,7 @@ void assemble(FILE *file) {
 	char c;
 	int i;
 	Operation *op;
-	SymbolTable *symbol = createSymbolTable("blah", 166);
+	SymbolTable *symbol = createSymbol("blah", 166);
 	initasmOperations();
 	op = searchKeyword("add");
 	printasm();
@@ -51,4 +56,12 @@ void assemble(FILE *file) {
 	}
 	printf("\n");
 	freeSymbolTable(symbol);
+}
+
+Code map(FILE *file, SymbolTable *symboltable) {
+	return 0;
+}
+
+void convert(FILE *file, SymbolTable *symboltable) {
+
 }

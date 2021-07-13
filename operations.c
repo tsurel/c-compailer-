@@ -1,7 +1,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+
 #include "operations.h"
+#include "asmutils.h"
 
 /**
  * Contains a collection of utility and initialization functions for the operations
@@ -128,6 +130,7 @@ Code insert(char *keyword, unsigned char type, unsigned char funct, unsigned cha
  * type code, funct code, and opcode.
  * At the end of the process, this function will return a code that tells if the
  * initialization was successful or not.
+ * This function should be called only once.
  */
 Code initasmOperations() {
 	const unsigned char breakR = 5; /* funct code pattern break for R type code-words. */
