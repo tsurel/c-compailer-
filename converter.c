@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "converter.h"
 #include "utils.h"
@@ -23,39 +24,31 @@ char *assembleJ(Operation *op, unsigned char reg, unsigned address);
 
 /* __Temporary test code__ */
 /* __The following just prints the first character of every line__ */
-void assemble(FILE *file) {
-	char c;
-	int i;
-	Operation *op;
-	SymbolTable *symbol = createSymbol("blah", 166);
-	initasmOperations();
-	op = searchKeyword("add");
-	printasm();
-	printf("\n---%s\t%d\t%d\t%d\n", op->keyword, op->type, op->funct, op->opcode);
-	if (searchKeyword("blah") == NULL)
-		printf("%s\n", "SUCCESS");
-	clearasmOperations();
+void test(FILE *file) {
+	int start = 0, end = -1;
+	char *str = malloc(SOURCE_LINE_LENGTH + 1);
+	Expectation expecting = ExpectDollarSign;
 
-	for (i = 0; i < 5; ++i) {
-		if (addAttribute(symbol, CODE) == ERROR)
-			printf("%s\n", "YAY");
-	}
+	Flag flag;
+	if (str == NULL)
+		exit(EXIT_FAILURE);
 
-	for (i = 0; i < ATTRS_PER_LABEL; ++i) {
-		printf("%d\n", symbol->attributes[i]);
-	}
-
-	printf("%s\t%d\n", symbol->symbol, symbol->address);
-	while ((c = fgetc(file)) != EOF) {
-		if (c == '\n') {
-			printf("%c", c);
-		} else {
-			printf("%c\n", c);
-			skipln(file);
-		}
-	}
+	flag = extractSourceLine(file, str, &end);
 	printf("\n");
-	freeSymbolTable(symbol);
+	printf("%d\n", flag);
+	printf("%d\n", end);
+	flag = rangeRParam(str, &expecting, R3, &start, &end);
+	printf("\n");
+	printf("%s\n", str);
+	printf("Flag: %d\n", flag);
+	printf("Expectation: %d\n", expecting);
+	printf("Range: %d --- %d\n", start, end);
+	printf("\n");
+	free(str);
+}
+
+void assemble(FILE *file) {
+	test(file);
 }
 
 Code map(FILE *file, SymbolTable *symboltable) {
