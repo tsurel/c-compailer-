@@ -52,7 +52,12 @@ typedef enum {
 	ExpectDigit, /* The next character should be a digit. */
 	ExpectDigitOrComma, /* The next character should be a digit or a comma. */
 	ExpectComma, /* The next character should be a comma. */
-	ExpectDigitOrEnd /* The next part should be a digit or an ending. */
+	ExpectDigitOrEnd, /* The next part should be a digit or an ending. */
+    Expect8BitParams, /* The next part should be signed 8 bit parameters. */
+    Expect16BitParams, /* The next part should be signed 16 bit parameters. */
+    Expect32BitParams, /* The next part should be signed 32 bit parameters. */
+    ExpectString, /* The next part should be a string declaration. */
+    ExpectLabel /* The next part should be a label symbol. */
 } Expectation;
 
 /**

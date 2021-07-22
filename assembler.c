@@ -2,10 +2,12 @@
 
 #include "converter.h"
 #include "asmutils.h"
+#include "keywords.h"
 
 /**
-Assembles the content of the source files, provided as arguments, from assembly code into machine code.
-*/
+ * Assembles the content of the source files, provided as arguments, from assembly
+ * code into machine code.
+ */
 
 /**
  * The assembler starts here with the file names provided as command line
@@ -17,6 +19,9 @@ int main(int argc, char const *argv[]) {
 
 	int i;
 	FILE *file;
+
+	/* Initializing the assembly keywords container. */
+	initasmKeywords();
 
 	/* Relevant arguments starts at 1. */
 	for (i = 1; i < argc; i++) {
@@ -40,6 +45,9 @@ int main(int argc, char const *argv[]) {
 		/* Closing the file. */
 		fclose(file);
 	}
+
+	/* Freeing all the memory used by the assembly keywords container. */
+	clearasmKeywords();
 
 	return 0;
 }

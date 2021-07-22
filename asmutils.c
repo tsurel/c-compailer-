@@ -72,7 +72,7 @@ Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength) {
 	 * assembler should not create output files.
 	 */
 	while (c != NEW_LINE && c != EOF) {
-		if (c != SPACE || c != TAB)
+		if (c != SPACE && c != TAB)
 			endStatus = ErrorLineLengthFlag;
 		c = fgetc(sourceFile);
 		index++;
