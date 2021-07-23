@@ -7,27 +7,61 @@
  * An header file for the symbol table translation unit.
  */
 
-#define EMPTY    0 /* An empty attribute. */
-#define CODE     1 /* Code attribute.     */
-#define DATA     2 /* Data attribute.     */
-#define ENTRY 	 3 /* Entry attribute.    */
-#define EXTERNAL 4 /* External attribute. */
-#define ATTRS_PER_LABEL 2 /* Maximum number of attributes per label. */
+/**
+ * Defining the symbol table data structure.
+ * This structure is used to map all labels in the assembly code,
+ * with every label having its assigned address and attributes.
+ * A pointer to this structure points to a single label.
+ */
+typedef struct symbolt SymbolTable;
 
 /**
- * Defining the symbol table structure in the form of a node chain.
- * This structure is used to map all labels in the assembly code.
- * Every node of this structure represents a label.
+ * Attributes for labels.
+ * used for distinguishing different types of labels.
  */
-typedef struct symbolt {
-	char *symbol; /* Stores the symbol of that label. */
-	int address; /* Stores the memory address of that label. */
-	unsigned char attributes[ATTRS_PER_LABEL]; /* Stores the attributes codes of that label. */
-	struct symbolt *next; /* A pointer to the next label. */
-} SymbolTable;
+typedef enum {
+    EmptyLabel, /* No attribute mark. */
+    CodeLabel, /* Code attribute. */
+    DataLabel, /* Data attribute. */
+    EntryLabel, /* Entry attribute. */
+    ExternLabel /* External attribute. */
+} LabelAttribute;
 
-SymbolTable *createSymbol(char *symbol, int address);
-Code addAttribute(SymbolTable *symbolTable ,unsigned char attributeCode);
+/**
+ * Returns the address of the given label.
+ */
+unsigned getAddress(SymbolTable *symbolTable);
+
+/**
+ * Returns the string representation of the given label.
+ */
+char *getSymbol(SymbolTable *symbolTable);
+
+/**
+ * Returns a pointer to the next label after the given label.
+ * The labels are sorted the way they were added.
+ */
+SymbolTable *getNext(SymbolTable *symbolTable);
+
+/**
+ * Adds a new label to the given symbol table and assigns it the given
+ * symbol and the given address.
+ * In case the given symbol table is null the newly created label can
+ * still be accessed via the returned pointer.
+ * Returns a pointer to the newly created label if the label was
+ * created successfully, and a null pointer if otherwise.
+ */
+SymbolTable *addSymbol(SymbolTable *symbolTable, char *symbol, unsigned address);
+
+/**
+ * Adds the given attribute code to the given label.
+ * Returns a code to determine if the operation was successful or not.
+ */
+Code addAttribute(SymbolTable *symbolTable , LabelAttribute labelAttribute);
+
+/**
+ * Frees all the memory used by the symbol table data structure.
+ */
 void freeSymbolTable(SymbolTable *symbolTable);
 
 #endif

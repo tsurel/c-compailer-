@@ -23,17 +23,26 @@ char *assembleJ(Operator *op, unsigned char reg, unsigned address);
 /* TODO: Implement the assembler itself using the functions above. */
 
 /* __Temporary test code__ */
-/* __The following just prints the first character of every line__ */
 void test(FILE *file) {
 	int start = 0, end = -1;
 	char *str = malloc(SOURCE_LINE_LENGTH + 1);
 	Expectation expecting = ExpectDollarSign;
 	Operator *operator = searchOperatorByString("sw");
 	Instructor *instructor = searchInstructorByString("asciz");
-
+	SymbolTable *symboltable = NULL, *frontLabel;
 	Flag flag;
+
 	if (str == NULL)
 		exit(EXIT_FAILURE);
+
+	frontLabel = symboltable = addSymbol(symboltable, "blah", 23);
+	symboltable = addSymbol(symboltable, "blah", 23);
+	symboltable = addSymbol(symboltable, "fgdah", 256);
+	symboltable = addSymbol(symboltable, "blf", 253);
+	symboltable = addSymbol(symboltable, "hg", 0);
+
+	for (symboltable = frontLabel; symboltable != NULL;symboltable = getNext(symboltable))
+		printf("%s\t%d\n", getSymbol(symboltable), getAddress(symboltable));
 
 	printasm();
 
