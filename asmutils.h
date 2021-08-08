@@ -42,6 +42,7 @@ typedef enum {
 	WarningLineLengthFlag, /* For line length warning handling. */
     EndFileFlag, /* For detecting file endings. */
     IncompleteStringFlag, /* For cases where the string has only a begin quote. */
+    InvalidRegisterFlag, /* For invalid registers. */
     HardwareErrorFlag /* For memory allocation issues. */
 } Flag;
 
@@ -80,19 +81,18 @@ typedef enum {
 Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength);
 
 /**
- * Scans a portion from the given source line to find the range of indexes
- * between which the operands for R type operators are located, all while
- * checking for syntax errors.
- * Should return NoIssueFlag flag if there was no issue and the second
- * parameter should be set to ExpectDigitOrEnd with the two last parameters
- * set to the range of indexes between which the operands are coded (including).
- * In the case of a syntax error the returned flag and the second parameter
- * can be used to determine what it was while the last two parameters would
- * be equal to the index where the issue was found.
- * Expects the forth index to be set to the index from which the scan should
- * begin and the third index to be set to either 2 or 3.
+ * Scans a portion of the given source line and extracts the operands
+ * into the last three parameters.
+ * In case of a syntax error it can be deciphered using the returned flag
+ * and the second parameter, also the forth parameter would point to the index
+ * where the issue was found.
+ * In case there were no issues the last three parameters would contain the
+ * extracted operands and the forth parameter would point to the index after
+ * the operands definition.
+ * Expects the forth parameter to be positioned before the operands and the
+ * third parameter to be either 2 or 3, if it is 2 then rt would be untouched.
  */
-Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNumParam, int *startIndex, int *endIndex);
+Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, int *index, char *rs, char *rt, char *rd);
 
 /**
  * Scans a portion from the given source line and extracts the string

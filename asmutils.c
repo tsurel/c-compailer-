@@ -13,6 +13,8 @@
 
 #define FILE_EXTENSION ".as" /* The extension for the assembly source files. */
 #define FILE_EXTENSION_LEN 3 /* The length of the assembly source file extension. */
+#define DECIMAL 10 /* Decimal base, used for conversion from text to integer. */
+#define MAX_REGISTER 31 /* The highest register on the CPU. */
 /* Syntax characters */
 #define NEW_LINE '\n'
 #define COMMENT ';'
@@ -26,6 +28,8 @@
 /**
  * The following functions should not be used outside of this translation unit.
  */
+Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNumParam, int *startIndex, int *endIndex);
+Flag extractRParam(char *sourceLine, const int startIndex, const char paramCount, char *rs, char *rt, char *rd);
 Flag rangeAscizParam(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
 void extractAscizParam(char *sourceLine, const int startIndex, const int endIndex, char **stringParam);
 
@@ -220,7 +224,7 @@ void extractAscizParam(char *sourceLine, const int startIndex, const int endInde
 Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **stringParam) {
 	int startIndex = *index; /* The beginning of the range. */
 	int endIndex = *index; /* The ending of the range. */
-	Flag endStatus = NoIssueFlag; /* To detect issues in the source code. */
+	Flag endStatus; /* To detect issues in the source file. */
 
 	/* Getting the range of indexes between which the string is defined. */
 	endStatus = rangeAscizParam(sourceLine, expecting, &startIndex, &endIndex);
@@ -230,7 +234,7 @@ Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **
 	if (endStatus == NoIssueFlag && *expecting == ExpectEnd) {
 		extractAscizParam(sourceLine, startIndex, endIndex, stringParam);
 		if (*stringParam == NULL)
-			endStatus = HardwareErrorFlag;
+			endStatus = HardwareErrorFlag; /* Memory allocation was not successful. */
 	} else
 		/* If there is a syntax error then the index would be set to that position. */
 		*index = endIndex;
@@ -327,6 +331,78 @@ Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNu
 	/* Checking if an issue was found. */
 	if (endStatus != NoIssueFlag || *expecting != ExpectDigitOrEnd)
 		*startIndex = *endIndex = index; /* Getting the position of the issue. */
+	return endStatus;
+}
+
+/**
+ * Uses the given start index to scan for operands from the given line
+ * and returns them through the last three parameters.
+ * The third parameter can be either 2 or 3, if it is set to 2 rt would
+ * be ignored and would not be set.
+ * This function also check if the register addresses are valid, if they
+ * are not then InvalidRegisterFlag flag would be returned.
+ * Expects the second parameter to be set to the index where the R
+ * parameters definition begins.
+ */
+Flag extractRParam(char *sourceLine, const int startIndex, const char paramCount, char *rs, char *rt, char *rd) {
+	/* A pointer to track the position on the line. */
+	char *pointer = sourceLine + startIndex + 1; /* That pointer is immediately set to the first digit of the first operand. */
+
+	*rs = strtol(pointer, &pointer, DECIMAL); /* Extracting the first operand. */
+	/* Checking if the operand is valid. */
+	if (*rs < 0 || *rs > MAX_REGISTER)
+		return InvalidRegisterFlag; /* The operand is not valid. */
+	/* Skipping to the next operand. */
+	while (!isdigit(*pointer))
+		pointer++;
+
+	/* This register should be set only if paramCount is set to 3. */
+	if(paramCount == R3) {
+		*rt = strtol(pointer, &pointer, DECIMAL); /* Extracting the second operand. */
+		/* Checking if the operand is valid. */
+		if (*rt < 0 || *rt > MAX_REGISTER)
+			return InvalidRegisterFlag; /* The operand is not valid. */
+		/* Skipping to the next operand. */
+		while (!isdigit(*pointer))
+			pointer++;
+	}
+
+	*rd = strtol(pointer, &pointer, DECIMAL); /* Extracting the last operand. */
+	/* Checking if the operand is valid. */
+	if (*rd < 0 || *rd > MAX_REGISTER)
+		return InvalidRegisterFlag; /* The operand is not valid. */
+
+	return NoIssueFlag; /* The extraction was completed successfully. */
+}
+
+/**
+ * Scans a portion of the given source line and extracts the operands
+ * into the last three parameters.
+ * In case of a syntax error it can be deciphered using the returned flag
+ * and the second parameter, also the forth parameter would point to the index
+ * where the issue was found.
+ * In case there were no issues the last three parameters would contain the
+ * extracted operands and the forth parameter would point to the index after
+ * the operands definition.
+ * Expects the forth parameter to be positioned before the operands and the
+ * third parameter to be either 2 or 3, if it is 2 then rt would be untouched.
+ */
+Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, int *index, char *rs, char *rt, char *rd) {
+	int startIndex = *index; /* The beginning of the range. */
+	int endIndex = *index; /* The ending of the range. */
+	Flag endStatus; /* To detect issues in the source file. */
+
+	/* Getting the range of indexes between which the operands are defined. */
+	endStatus = rangeRParam(sourceLine, expecting, paramCount, &startIndex, &endIndex);
+	*index = endIndex + 1; /* Setting the index to the character after the operands. */
+
+	/* If no syntax issues were found the string would be extracted. */
+	if (endStatus == NoIssueFlag && *expecting == ExpectDigitOrEnd)
+		endStatus = extractRParam(sourceLine, startIndex, paramCount, rs, rt, rd);
+	else
+		/* If there is a syntax error then the index would be set to that position. */
+		*index = endIndex;
+
 	return endStatus;
 }
 

@@ -28,7 +28,7 @@ void test(FILE *file) {
 	Expectation expecting;
 	int index = -1;
 	char *line = malloc(SOURCE_LINE_LENGTH + 1);
-	char *str;
+	char rs = 0, rt = 0, rd = 0;
 
 	if (line == NULL)
 		exit(EXIT_FAILURE);
@@ -37,11 +37,11 @@ void test(FILE *file) {
 	printf("%s\n", line);
 
 	index = 0;
-	flag = getAscizParam(line, &expecting, &index, &str);
+	flag = getRParam(line, &expecting, R2, &index, &rs, &rt, &rd);
 
 	printf("%d\t%d\t%d\n", flag, expecting, index);
-	if (flag == NoIssueFlag && expecting == ExpectEnd)
-		printf("%s\n", str);
+	if (flag == NoIssueFlag && expecting == ExpectDigitOrEnd)
+		printf("%d\t%d\t%d\n", rs, rt, rd);
 }
 
 void assemble(FILE *file) {
