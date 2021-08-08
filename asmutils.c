@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -19,7 +20,14 @@
 #define COMMA ','
 #define SPACE ' '
 #define TAB '\t'
+#define QUOTE '\"'
 #define TERMINATING_CHAR '\0'
+
+/**
+ * The following functions should not be used outside of this translation unit.
+ */
+Flag rangeAscizParam(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
+void extractAscizParam(char *sourceLine, const int startIndex, const int endIndex, char **stringParam);
 
 /**
  * Scans from a given position of a stream until a new line or terminating
@@ -29,7 +37,7 @@
  * This function also return a Flag in case there was an assembly syntax
  * related issue. If there was such issue the third parameter would hold
  * the length of the line.
- * Should return NewLineFlag flag if there was no issue.
+ * Should return NewLineFlag flag or EndFileFlag flag if there was no issue.
  * This function checks for line length related issues only.
  * After calling this function the first parameter will be pointing to
  * the first character of the next line.
@@ -49,7 +57,10 @@ Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength) {
 			/* Inserting a terminating character */
 			line[index] = TERMINATING_CHAR;
 			/* There was no length related issue. */
-			return NewLineFlag;
+			if (c == NEW_LINE)
+				return NewLineFlag;
+			else
+				return EndFileFlag;
 		}
 		/* Adding every character before the limit to the buffer. */
 		line[index] = c;
@@ -59,8 +70,12 @@ Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength) {
 	line[index] = TERMINATING_CHAR;
 	/* Checking if the SOURCE_LINE_LENGTH + 1 character was line ending. */
 	c = fgetc(sourceFile);
-	if (c == NEW_LINE || c == EOF)
-		return NewLineFlag; /* There was no length related issue. */
+
+	/* There was no length related issue. */
+	if (c == NEW_LINE)
+		return NewLineFlag;
+	else if (c == EOF)
+		return EndFileFlag;
 
 	/* At this point the line is too long. */
 	index++;
@@ -88,6 +103,143 @@ Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength) {
 
 /**
  * Scans a portion from the given source line to find the range of indexes
+ * between which the string for the asciz keyword is located, all while
+ * checking for syntax errors.
+ * Should return NoIssueFlag flag if there was no issue and the second
+ * parameter should be set to ExpectEnd with the two last parameters set
+ * to the range of indexes between which the string is coded (including).
+ * In the case of a syntax error the returned flag and the second parameter
+ * can be used to determine what it was while the last two parameters would
+ * be equal to the index where the issue was found.
+ * Expects the third parameter to be set to the index from which the scan
+ * should begin.
+ */
+Flag rangeAscizParam(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex) {
+	int index; /* Tracks the index of every character in the given line. */
+	char c; /* For readability purposes. */
+	char isLineEmpty = 1; /* To track if this part of the line is empty or not. */
+	char incompleteString = 0; /* To track if the string has a second quotation mark or if it has one at all. */
+	Flag endStatus = NoIssueFlag; /* To detect issues in the source code. */
+	*expecting = ExpectQuote; /* Expecting a quotation mark. */
+
+	for (index = *startIndex; sourceLine[index] != TERMINATING_CHAR; index++) {
+		c = sourceLine[index];
+
+		if (c == TAB || c == SPACE) { /* Current character is space or tab. */
+			/*
+			 * Setting the beginning of the range based on if the current position
+			 * is before the string definition.
+			 */
+			if (isLineEmpty)
+				*startIndex = index + 1;
+
+			if (*expecting == ExpectEnd)
+				break; /* String was scanned successfully. */
+			continue;
+		}
+		if (c == COMMENT) { /* Current character is a semicolon. */
+			endStatus = StrayCommentFlag;
+			break; /* A comment must have a dedicated line. */
+		}
+		if (c == QUOTE) { /* Current character is a quotation mark. */
+			if (isLineEmpty) {
+				isLineEmpty = 0; /* The string definition has begun (first quote). */
+				incompleteString = 1;
+			} else {
+				*expecting = ExpectEnd; /* Second quote. */
+				incompleteString = 0;
+			}
+			continue;
+		}
+		if (*expecting == ExpectQuote) {
+			if (isLineEmpty) {
+				/* Unexpected characters have appeared outside the string. */
+				endStatus = UnexpectedFlag;
+				break;
+			}
+			continue; /* Characters are within the string. */
+		}
+		if (*expecting == ExpectEnd) {
+			/* Unexpected characters have appeared outside the string. */
+			endStatus = UnexpectedFlag;
+			break;
+		}
+	}
+
+	*endIndex = index - 1; /* Setting the end of the range. */
+
+	/* Checking if an issue was found. */
+	if (endStatus != NoIssueFlag || *expecting != ExpectEnd)
+		*startIndex = *endIndex = index; /* Getting the position of the issue. */
+	/* Differentiating between no string and an incomplete string. */
+	if (incompleteString)
+		endStatus = IncompleteStringFlag;
+
+	return endStatus;
+}
+
+/**
+ * Uses the given range to extract the asciz parameter (string) that is within
+ * that range into the last parameter. The returned value on the last parameter
+ * is the string without the quotation marks on the edges and a terminating
+ * character at the end.
+ * This function allocates memory on the heap for the last parameter, in
+ * case the allocation failed the last parameter would be null.
+ */
+void extractAscizParam(char *sourceLine, const int startIndex, const int endIndex, char **stringParam) {
+	int index; /* Index on the line (source). */
+	int paramIndex = 0; /* Index on the string parameter (destination). */
+	char *temp; /* Temporary array to copy the string to. */
+
+	temp = malloc(endIndex - startIndex); /* Allocating memory for the string. */
+	if (temp == NULL)
+		return; /* Cannot continue without memory. */
+
+	/* The following loop copies the string from the given line to the last parameter. */
+	for (index = startIndex + 1; index < endIndex; index++, paramIndex++){
+		temp[paramIndex] = sourceLine[index];
+	}
+
+	/* Adding the terminating character at the end. */
+	temp[paramIndex] = TERMINATING_CHAR;
+	*stringParam = temp; /* Setting the last parameter to point to that array. */
+}
+
+/**
+ * Scans a portion from the given source line and extracts the string
+ * definition that comes after an asciz keyword if there are no syntax
+ * errors.
+ * In case of a syntax error it can be deciphered using the returned flag
+ * and the second parameter, also the last parameter would not be modified
+ * and the third parameter would point to the index where the issue was found.
+ * In case there were no issues the last parameter would contain the extracted
+ * string and the third parameter would point to the index after the string
+ * definition.
+ * Note that memory for the last parameter is allocated on the heap.
+ */
+Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **stringParam) {
+	int startIndex = *index; /* The beginning of the range. */
+	int endIndex = *index; /* The ending of the range. */
+	Flag endStatus = NoIssueFlag; /* To detect issues in the source code. */
+
+	/* Getting the range of indexes between which the string is defined. */
+	endStatus = rangeAscizParam(sourceLine, expecting, &startIndex, &endIndex);
+	*index = endIndex + 1; /* Setting the index to the character after the string. */
+
+	/* If no syntax issues were found the string would be extracted. */
+	if (endStatus == NoIssueFlag && *expecting == ExpectEnd) {
+		extractAscizParam(sourceLine, startIndex, endIndex, stringParam);
+		if (*stringParam == NULL)
+			endStatus = HardwareErrorFlag;
+	} else
+		/* If there is a syntax error then the index would be set to that position. */
+		*index = endIndex;
+
+	return endStatus;
+}
+
+/**
+ * Scans a portion from the given source line to find the range of indexes
  * between which the operands for R type operators are located, all while
  * checking for syntax errors.
  * Should return NoIssueFlag flag if there was no issue and the second
@@ -96,11 +248,11 @@ Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength) {
  * In the case of a syntax error the returned flag and the second parameter
  * can be used to determine what it was while the last two parameters would
  * be equal to the index where the issue was found.
- * Expects the forth index to be set to the index from which the scan should
+ * Expects the forth parameter to be set to the index from which the scan should
  * begin and the third index to be set to either 2 or 3.
  */
 Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNumParam, int *startIndex, int *endIndex) {
-	int index; /* Tracks the index of the  */
+	int index; /* Tracks the index of every character in the given line. */
 	char c; /* For readability purposes. */
 	char isSpaceAllowed = 1; /* To track parts were spaces or tabs can be. */
 	char isLineEmpty = 1; /* To track if this part of the line is empty or not. */
@@ -116,15 +268,14 @@ Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNu
 				break; /* Found illegally positioned space or tab. */
 			}
 			/*
-			 * Adjusting the range based on if the current position is before or
-			 * after the operands.
+			 * Setting the beginning of the range based on if the current position
+			 * is before the operands.
 			 */
 			if (isLineEmpty)
 				*startIndex = index + 1;
-			else
-				*endIndex = index - 1;
+
 			if (*expecting == ExpectDigitOrEnd)
-				break; /* Operands were read successfully. */
+				break; /* Operands were scanned successfully. */
 			if (*expecting == ExpectDigitOrComma)
 				/* Digits cannot be separated by a space. */
 				*expecting = ExpectComma;
@@ -170,6 +321,9 @@ Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNu
 		endStatus = UnexpectedFlag;
 		break; /* Found an unexpected character. */
 	}
+
+	*endIndex = index - 1; /* Setting the end of the range. */
+
 	/* Checking if an issue was found. */
 	if (endStatus != NoIssueFlag || *expecting != ExpectDigitOrEnd)
 		*startIndex = *endIndex = index; /* Getting the position of the issue. */

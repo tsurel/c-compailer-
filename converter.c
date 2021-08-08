@@ -24,42 +24,24 @@ char *assembleJ(Operator *op, unsigned char reg, unsigned address);
 
 /* __Temporary test code__ */
 void test(FILE *file) {
-	int start = 0, end = -1;
-	char *str = malloc(SOURCE_LINE_LENGTH + 1);
-	Expectation expecting = ExpectDollarSign;
-	Operator *operator = searchOperatorByString("sw");
-	Instructor *instructor = searchInstructorByString("asciz");
-	SymbolTable *symboltable = NULL, *frontLabel;
 	Flag flag;
+	Expectation expecting;
+	int index = -1;
+	char *line = malloc(SOURCE_LINE_LENGTH + 1);
+	char *str;
 
-	if (str == NULL)
+	if (line == NULL)
 		exit(EXIT_FAILURE);
 
-	frontLabel = symboltable = addSymbol(symboltable, "blah", 23);
-	symboltable = addSymbol(symboltable, "blah", 23);
-	symboltable = addSymbol(symboltable, "fgdah", 256);
-	symboltable = addSymbol(symboltable, "blf", 253);
-	symboltable = addSymbol(symboltable, "hg", 0);
+	flag = extractSourceLine(file, line, &index);
+	printf("%s\n", line);
 
-	for (symboltable = frontLabel; symboltable != NULL;symboltable = getNext(symboltable))
-		printf("%s\t%d\n", getSymbol(symboltable), getAddress(symboltable));
+	index = 0;
+	flag = getAscizParam(line, &expecting, &index, &str);
 
-	printasm();
-
-	flag = extractSourceLine(file, str, &end);
-	printf("\n");
-	printf("%d\n", flag);
-	printf("%d\n", end);
-	flag = rangeRParam(str, &expecting, R3, &start, &end);
-	printf("\n");
-	printf("%s\n", str);
-	printf("Flag: %d\n", flag);
-	printf("Expectation: %d\n", expecting);
-	printf("Range: %d --- %d\n", start, end);
-	printf("\n");
-	printf("%d\t%d\t%d\n", getType(operator), getFunct(operator), getOpcode(operator));
-	printf("%d\n", getExpectation(instructor));
-	free(str);
+	printf("%d\t%d\t%d\n", flag, expecting, index);
+	if (flag == NoIssueFlag && expecting == ExpectEnd)
+		printf("%s\n", str);
 }
 
 void assemble(FILE *file) {
