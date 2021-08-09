@@ -35,6 +35,7 @@ typedef enum {
 	StrayCommaFlag, /* For an illegally positioned dollar sign. */
 	StrayDigitFlag, /* For an illegally positioned digit. */
 	StrayCommentFlag, /* For an illegally positioned semicolon. */
+    StraySignFlag, /* For an illegally positioned plus or minus. */
 	UnexpectedFlag, /* For unexpected character events. */
 	IllegalSpacingFlag, /* For an illegally positioned spacing. */
 	ErrorLineLengthFlag, /* For line length error handling. */
@@ -43,6 +44,7 @@ typedef enum {
     EndFileFlag, /* For detecting file endings. */
     IncompleteStringFlag, /* For cases where the string has only a begin quote. */
     InvalidRegisterFlag, /* For invalid registers. */
+    SizeOverflowFlag, /* For cases where a value is too big to be assigned. */
     HardwareErrorFlag /* For memory allocation issues. */
 } Flag;
 
@@ -55,6 +57,7 @@ typedef enum {
 	ExpectDollarSign, /* The next character should be a dollar sign. */
 	ExpectDigit, /* The next character should be a digit. */
 	ExpectDigitOrComma, /* The next character should be a digit or a comma. */
+    ExpectDigitOrSign, /* The next character should be a digit or a plus or a minus. */
 	ExpectComma, /* The next character should be a comma. */
 	ExpectDigitOrEnd, /* The next part should be a digit or an ending. */
     Expect8BitParams, /* The next part should be signed 8 bit parameters. */
@@ -62,7 +65,7 @@ typedef enum {
     Expect32BitParams, /* The next part should be signed 32 bit parameters. */
     ExpectString, /* The next part should be a string declaration. */
     ExpectLabel, /* The next part should be a label symbol. */
-    ExpectQuote
+    ExpectQuote /* The next part should be a string definition. */
 } Expectation;
 
 /**
@@ -81,18 +84,21 @@ typedef enum {
 Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength);
 
 /**
- * Scans a portion of the given source line and extracts the operands
- * into the last three parameters.
- * In case of a syntax error it can be deciphered using the returned flag
- * and the second parameter, also the forth parameter would point to the index
+ * Scans a portion of the given source line and extracts the arguments
+ * into the last parameter if, there were no syntax errors.
+ * In case of a syntax error it can be extracted using the returned flag
+ * and the second parameter, also the third parameter would point to the index
  * where the issue was found.
- * In case there were no issues the last three parameters would contain the
- * extracted operands and the forth parameter would point to the index after
- * the operands definition.
- * Expects the forth parameter to be positioned before the operands and the
- * third parameter to be either 2 or 3, if it is 2 then rt would be untouched.
+ * In case there were no issues the last parameter would contain the extracted
+ * arguments and the third parameter would point to the index with the
+ * terminating character (the end of the line) while the forth parameter would
+ * contain the number of extracted arguments.
+ * Expects the third parameter to be positioned before the arguments and the
+ * second parameter to be either one of the following expectations:
+ * Expect8BitParams, Expect16BitParams, Expect32BitParams.
+ * This information is used for the arguments size checking.
  */
-Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, int *index, char *rs, char *rt, char *rd);
+Flag getDataParam(char *sourceLine, Expectation *expecting, int *index, int *count, void **args);
 
 /**
  * Scans a portion from the given source line and extracts the string
@@ -107,6 +113,20 @@ Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, 
  * Note that memory for the last parameter is allocated on the heap.
  */
 Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **stringParam);
+
+/**
+ * Scans a portion of the given source line and extracts the operands
+ * into the last three parameters.
+ * In case of a syntax error it can be deciphered using the returned flag
+ * and the second parameter, also the forth parameter would point to the index
+ * where the issue was found.
+ * In case there were no issues the last three parameters would contain the
+ * extracted operands and the forth parameter would point to the index after
+ * the operands definition.
+ * Expects the forth parameter to be positioned before the operands and the
+ * third parameter to be either 2 or 3, if it is 2 then rt would be untouched.
+ */
+Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, int *index, char *rs, char *rt, char *rd);
 
 /**
  * Checks if the extension of the given file's name is an assembly source

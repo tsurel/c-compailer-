@@ -25,10 +25,13 @@ char *assembleJ(Operator *op, unsigned char reg, unsigned address);
 /* __Temporary test code__ */
 void test(FILE *file) {
 	Flag flag;
-	Expectation expecting;
+	Expectation expecting = Expect8BitParams;
 	int index = -1;
 	char *line = malloc(SOURCE_LINE_LENGTH + 1);
-	char rs = 0, rt = 0, rd = 0;
+	char *str = NULL;
+	void *result;
+	int count = 0;
+	int track = 0;
 
 	if (line == NULL)
 		exit(EXIT_FAILURE);
@@ -37,11 +40,27 @@ void test(FILE *file) {
 	printf("%s\n", line);
 
 	index = 0;
-	flag = getRParam(line, &expecting, R2, &index, &rs, &rt, &rd);
+	flag = getDataParam(line, &expecting, &index, &count, &result);
 
 	printf("%d\t%d\t%d\n", flag, expecting, index);
-	if (flag == NoIssueFlag && expecting == ExpectDigitOrEnd)
-		printf("%d\t%d\t%d\n", rs, rt, rd);
+	if ((flag == NoIssueFlag || flag == SizeOverflowFlag) && expecting == ExpectEnd){
+		while (track < count)
+			printf("%d\n", ((char*)result)[track++]);
+		free(result);
+	}
+
+	index = -1;
+	flag = extractSourceLine(file, line, &index);
+	printf("%s\n", line);
+	index = 0;
+	flag = getAscizParam(line, &expecting, &index, &str);
+	printf("%d\t%d\t%d\n", flag, expecting, index);
+	if (str != NULL)
+		printf("%s\n", str);
+
+	free(line);
+	if (str != NULL)
+		free(str);
 }
 
 void assemble(FILE *file) {

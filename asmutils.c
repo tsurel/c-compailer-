@@ -15,6 +15,15 @@
 #define FILE_EXTENSION_LEN 3 /* The length of the assembly source file extension. */
 #define DECIMAL 10 /* Decimal base, used for conversion from text to integer. */
 #define MAX_REGISTER 31 /* The highest register on the CPU. */
+#define BYTE_SIZE 1 /* Arguments size for the db instructor. */
+#define HALF_SIZE 2 /* Arguments size for the dh instructor. */
+#define WORD_SIZE 4 /* Arguments size for the dw instructor. */
+#define MAX_SIGNED_BYTE 127 /* Maximum value for a signed byte. */
+#define MIN_SIGNED_BYTE -128 /* Minimum value for a signed byte. */
+#define MAX_SIGNED_HALF 32767 /* Maximum value for a signed half word. */
+#define MIN_SIGNED_HALF -32768 /* Minimum value for a signed half word. */
+#define MAX_SIGNED_WORD 2147483647 /* Maximum value for a signed word. */
+#define MIN_SIGNED_WORD -2147483648 /* Minimum value for a signed word. */
 /* Syntax characters */
 #define NEW_LINE '\n'
 #define COMMENT ';'
@@ -23,15 +32,21 @@
 #define SPACE ' '
 #define TAB '\t'
 #define QUOTE '\"'
+#define PLUS '+'
+#define MINUS '-'
 #define TERMINATING_CHAR '\0'
 
 /**
  * The following functions should not be used outside of this translation unit.
  */
-Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNumParam, int *startIndex, int *endIndex);
-Flag extractRParam(char *sourceLine, const int startIndex, const char paramCount, char *rs, char *rt, char *rd);
+Flag rangeDataParam(char *sourceLine, Expectation *expecting, int *count, int *startIndex, int *endIndex);
+Flag extractDataParam(char *sourceLine, const Expectation expecting, const int count, const int startIndex, void **args);
+
 Flag rangeAscizParam(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
 void extractAscizParam(char *sourceLine, const int startIndex, const int endIndex, char **stringParam);
+
+Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNumParam, int *startIndex, int *endIndex);
+Flag extractRParam(char *sourceLine, const int startIndex, const char paramCount, char *rs, char *rt, char *rd);
 
 /**
  * Scans from a given position of a stream until a new line or terminating
@@ -107,6 +122,212 @@ Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength) {
 
 /**
  * Scans a portion from the given source line to find the range of indexes
+ * between which the argument for db, dh, or dw instructors are located,
+ * all while checking for syntax errors.
+ * Should return NoIssueFlag flag if there was no issue and the second
+ * parameter should be set to ExpectEnd with the two last parameters set
+ * to the range of indexes between which the arguments are coded (including).
+ * Note that the arguments end at the last character of the line, even if
+ * there are spaces between the actual arguments and the end of the line.
+ * In the case of a syntax error the returned flag and the second parameter
+ * can be used to determine what it was while the last two parameters would
+ * be equal to the index where the issue was found.
+ * Expects the forth parameter to be set to the index from which the scan should
+ * begin.
+ * The third parameter, if there were no issues, would be set to the number of
+ * arguments found in this line.
+ */
+Flag rangeDataParam(char *sourceLine, Expectation *expecting, int *count, int *startIndex, int *endIndex) {
+	int index; /* Tracks the index of every character in the given line. */
+	char c; /* For readability purposes. */
+	char isLineEmpty = 1; /* To track if this part of the line is empty or not. */
+	char isSpaceAllowed = 1; /* To track parts were spaces or tabs can be. */
+	char canCount = 1; /* To track counting the number of arguments. */
+	Flag endStatus = NoIssueFlag; /* To detect issues in the source code. */
+	*expecting = ExpectDigitOrSign; /* Expecting a digit or a plus sign or a minus sign. */
+
+	*count = 0; /* Starting from zero. */
+
+	for (index = *startIndex; sourceLine[index] != TERMINATING_CHAR; index++) {
+		c = sourceLine[index];
+
+		if (c == TAB || c == SPACE) { /* Current character is space or tab. */
+			/*
+			 * Setting the beginning of the range based on if the current position
+			 * is before the parameters definition.
+			 */
+			if (isLineEmpty)
+				*startIndex = index + 1;
+
+			if (!isSpaceAllowed) {
+				endStatus = IllegalSpacingFlag;
+				break; /* Found an illegally positioned space or tab. */
+			}
+
+			if (*expecting == ExpectDigitOrComma)
+				*expecting = ExpectComma; /* There cannot be a space between digits. */
+
+			continue;
+		}
+		if (c == COMMENT) { /* Current character is a semicolon. */
+			endStatus = StrayCommentFlag;
+			break; /* A comment must have a dedicated line. */
+		}
+		if (c == PLUS || c == MINUS) { /* Current character is a plus or a minus. */
+			if (*expecting != ExpectDigitOrSign) {
+				endStatus = StraySignFlag;
+				break; /* Found an illegally positioned plus or minus. */
+			}
+			isLineEmpty = 0; /* The line is not empty. */
+			isSpaceAllowed = 0; /* There cannot be a space between a sign and a digit. */
+			*expecting = ExpectDigit; /* The next character should be a digit. */
+			if (canCount) { /* Counting the number of arguments on this line. */
+				canCount = 0;
+				(*count)++;
+			}
+			continue;
+		}
+		if (isdigit(c)) { /* Current character is a digit. */
+			if (*expecting != ExpectDigit && *expecting != ExpectDigitOrComma && *expecting != ExpectDigitOrSign) {
+				endStatus = StrayDigitFlag;
+				break; /* Found an illegally positioned digit. */
+			}
+			isSpaceAllowed = 1; /* There can be spaces after digits. */
+			isLineEmpty = 0;  /* The line is not empty. */
+			*expecting = ExpectDigitOrComma; /* The next character can be a digit or a comma. */
+			if (canCount) { /* Counting the number of arguments on this line. */
+				canCount = 0;
+				(*count)++;
+			}
+			continue;
+		}
+		if (c == COMMA) { /* Current character is a comma. */
+			if (*expecting != ExpectComma && *expecting != ExpectDigitOrComma) {
+				endStatus = StrayCommaFlag;
+				break; /* Found an illegally positioned comma. */
+			}
+			*expecting = ExpectDigitOrSign; /* Expecting another argument after a comma. */
+			canCount = 1; /* Another argument should come after a comma. */
+			continue;
+		}
+		endStatus = UnexpectedFlag;
+		break; /* Found an unexpected character. */
+	}
+
+	*endIndex = index - 1; /* Setting the end of the range. */
+
+	/* Checking if an issue was found. */
+	if (endStatus != NoIssueFlag || (*expecting != ExpectComma && *expecting != ExpectDigitOrComma))
+		*startIndex = *endIndex = index; /* Getting the position of the issue. */
+	else
+		*expecting = ExpectEnd; /* Making checking for issues easier outside this function. */
+
+	return endStatus;
+}
+
+/**
+ * Uses the given start index to scan for arguments from the given line
+ * and returns them through the last parameter, while checking for
+ * sizes issues.
+ * if there are no issues the return flag should be NoIssueFlag flag.
+ * Expects the second parameter to be one of the following expectations:
+ * Expect8BitParams, Expect16BitParams, Expect32BitParams.
+ * This information is used for the arguments size checking.
+ * The forth parameter should be pointing to the position before the
+ * arguments start.
+ * The third parameter should contain the number of arguments on this line.
+ * This function allocates memory on the heap for the last parameter.
+ */
+Flag extractDataParam(char *sourceLine, const Expectation expecting, const int count, const int startIndex, void **args) {
+	int argsIndex = 0; /* To track where to place each argument on the temporary array. */
+	void *check; /* Used for checking if the memory allocation was successful. */
+	char *dbTemp; /* A temporary array for db arguments. */
+	short *dhTemp; /* A temporary array for dh arguments. */
+	long *dwTemp; /* A temporary array for dw arguments. */
+
+	long int value; /* Used for checking the size of the argument. */
+	/* A pointer to track the position on the line. */
+	char *pointer = sourceLine + startIndex; /* That pointer is immediately set to the first digit of the first argument. */
+	Flag endStatus = NoIssueFlag; /* To check for issues. */
+
+	/* Allocating memory for the array of arguments. */
+	if (expecting == Expect8BitParams)
+		check = dbTemp = calloc(count, BYTE_SIZE); /* db arguments. */
+	else if (expecting == Expect16BitParams)
+		check = dhTemp = calloc(count, HALF_SIZE); /* dh arguments. */
+	else if (expecting == Expect32BitParams)
+		check = dwTemp = calloc(count, WORD_SIZE); /* dw arguments. */
+
+	if (check == NULL)
+		return HardwareErrorFlag; /* Cannot continue without memory. */
+
+	/* Lopping through all the arguments on this line. */
+	while (argsIndex < count) {
+		/* If a number if found it would be extracted. */
+		if (isdigit(*pointer) || *pointer == PLUS || *pointer == MINUS) {
+			value = strtol(pointer, &pointer, DECIMAL); /* Extracting the argument. */
+
+			/* Checking the size of the argument. */
+			if (expecting == Expect8BitParams) {
+				if (value < MIN_SIGNED_BYTE || value > MAX_SIGNED_BYTE)
+					endStatus = SizeOverflowFlag; /* db overflow. */
+				dbTemp[argsIndex++] = value; /* Inserting the argument into the temporary db array. */
+			} else if (expecting == Expect16BitParams) {
+				if (value < MIN_SIGNED_HALF || value > MAX_SIGNED_HALF)
+					endStatus = SizeOverflowFlag; /* dh overflow. */
+				dhTemp[argsIndex++] = value; /* Inserting the argument into the temporary dh array. */
+			} else if (expecting == Expect32BitParams) {
+				if (value < MIN_SIGNED_WORD || value > MAX_SIGNED_WORD)
+					endStatus = SizeOverflowFlag; /* dw overflow. */
+				dwTemp[argsIndex++] = value; /* Inserting the argument into the temporary dw array. */
+			}
+			/* In case of an overflow the less important bytes are taken. */
+		}
+		/* Skipping the rest of the characters that are not a part of a number. */
+		pointer++;
+	}
+
+	*args = check; /* Assigning the address of the array to the return parameter. */
+	return endStatus;
+}
+
+/**
+ * Scans a portion of the given source line and extracts the arguments
+ * into the last parameter if, there were no syntax errors.
+ * In case of a syntax error it can be extracted using the returned flag
+ * and the second parameter, also the third parameter would point to the index
+ * where the issue was found.
+ * In case there were no issues the last parameter would contain the extracted
+ * arguments and the third parameter would point to the index with the
+ * terminating character (the end of the line) while the forth parameter would
+ * contain the number of extracted arguments.
+ * Expects the third parameter to be positioned before the arguments and the
+ * second parameter to be either one of the following expectations:
+ * Expect8BitParams, Expect16BitParams, Expect32BitParams.
+ * This information is used for the arguments size checking.
+ */
+Flag getDataParam(char *sourceLine, Expectation *expecting, int *index, int *count, void **args) {
+	int startIndex = *index; /* The beginning of the range. */
+	int endIndex = *index; /* The ending of the range. */
+	Flag endStatus; /* To detect issues in the source line. */
+	Expectation sizeExpectation = *expecting;
+
+	*count = 0; /* Initializing the argument counting variable. */
+	/* Getting the range of indexes between which the operands are defined. */
+	endStatus = rangeDataParam(sourceLine, expecting, count, &startIndex, &endIndex);
+	*index = endIndex + 1; /* Setting the index to the position of the terminating character. */
+
+	/* If no syntax issues were found the arguments would be extracted. */
+	if (endStatus == NoIssueFlag && *expecting == ExpectEnd)
+		endStatus = extractDataParam(sourceLine, sizeExpectation, *count, startIndex, args);
+	else
+		/* If there is a syntax error then the index would be set to its position. */
+		*index = endIndex;
+	return endStatus;
+}
+
+/**
+ * Scans a portion from the given source line to find the range of indexes
  * between which the string for the asciz keyword is located, all while
  * checking for syntax errors.
  * Should return NoIssueFlag flag if there was no issue and the second
@@ -137,40 +358,28 @@ Flag rangeAscizParam(char *sourceLine, Expectation *expecting, int *startIndex, 
 			if (isLineEmpty)
 				*startIndex = index + 1;
 
-			if (*expecting == ExpectEnd)
-				break; /* String was scanned successfully. */
 			continue;
-		}
-		if (c == COMMENT) { /* Current character is a semicolon. */
-			endStatus = StrayCommentFlag;
-			break; /* A comment must have a dedicated line. */
 		}
 		if (c == QUOTE) { /* Current character is a quotation mark. */
-			if (isLineEmpty) {
-				isLineEmpty = 0; /* The string definition has begun (first quote). */
-				incompleteString = 1;
-			} else {
-				*expecting = ExpectEnd; /* Second quote. */
-				incompleteString = 0;
-			}
+			if (incompleteString)
+				*expecting = ExpectEnd; /* This might be an ending quote. */
+			else
+				*expecting = ExpectQuote; /* This is not an ending quote. */
+
+			isLineEmpty = 0; /* This part of the line is not empty. */
+			/* quotes can appear within the string but there has to be one on each edge. */
+			incompleteString = !incompleteString;
+			*endIndex = index; /* Setting\resetting the end of the range. */
 			continue;
 		}
-		if (*expecting == ExpectQuote) {
-			if (isLineEmpty) {
-				/* Unexpected characters have appeared outside the string. */
-				endStatus = UnexpectedFlag;
-				break;
-			}
-			continue; /* Characters are within the string. */
-		}
-		if (*expecting == ExpectEnd) {
+		if (isLineEmpty) {
 			/* Unexpected characters have appeared outside the string. */
 			endStatus = UnexpectedFlag;
 			break;
 		}
+		*expecting = ExpectQuote; /* If any other character had appeared then the string should not end. */
+		
 	}
-
-	*endIndex = index - 1; /* Setting the end of the range. */
 
 	/* Checking if an issue was found. */
 	if (endStatus != NoIssueFlag || *expecting != ExpectEnd)
@@ -390,7 +599,7 @@ Flag extractRParam(char *sourceLine, const int startIndex, const char paramCount
 Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, int *index, char *rs, char *rt, char *rd) {
 	int startIndex = *index; /* The beginning of the range. */
 	int endIndex = *index; /* The ending of the range. */
-	Flag endStatus; /* To detect issues in the source file. */
+	Flag endStatus; /* To detect issues in the source line. */
 
 	/* Getting the range of indexes between which the operands are defined. */
 	endStatus = rangeRParam(sourceLine, expecting, paramCount, &startIndex, &endIndex);
