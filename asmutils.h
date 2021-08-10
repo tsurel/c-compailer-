@@ -149,6 +149,24 @@ Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, 
 Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, char *rt, short *immed, char **label);
 
 /**
+ * Scans a portion of the given source line and extracts the operand into
+ * one of the last two parameters.
+ * In case of a syntax error it can be deciphered using the returned flag
+ * and the second parameter, also the third parameter would point to the index
+ * where the issue was found.
+ * In case there were no issues one of the last two parameters would contain the
+ * extracted operand and the third parameter would point to the index after
+ * the operands definition.
+ * Expects the third parameter to be positioned before the operands.
+ * This function may or may not allocate memory on the heap for the last
+ * parameter based on what the operand is. If the operand is a label then
+ * memory would be allocated (if there were no errors), and if the
+ * operand is a register then the last parameter would be set to a
+ * null pointer while the fourth parameter would point to the register's address.
+ */
+Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, char **label);
+
+/**
  * Checks if the extension of the given file's name is an assembly source
  * code file, in other words if the given string ends with ".as".
  * Returns SUCCESS if the given file name is a valid assembly source code

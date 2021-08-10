@@ -29,8 +29,8 @@ void test(FILE *file) {
 	int index = -1;
 	char *line = malloc(SOURCE_LINE_LENGTH + 1);
 	char *str = NULL;
-	char rs = 0, rt = 0;
-	short immed = 0;
+	char reg = 0;
+
 
 	if (line == NULL)
 		exit(EXIT_FAILURE);
@@ -39,12 +39,11 @@ void test(FILE *file) {
 	printf("%s\n", line);
 
 	index = 0;
-	flag = getIParam(line, &expecting, &index, &rs, &rt, &immed, &str);
+	flag = getJParam(line, &expecting, &index, &reg, &str);
 
 	printf("%d\t%d\t%d\n", flag, expecting, index);
-	if ((flag == NoIssueFlag || flag == SizeOverflowFlag) && (expecting == ExpectDigitOrEnd || expecting == ExpectLabel)) {
-		printf("%d\t%d\n", rs, rt);
-		printf("%d\n", immed);
+	if (flag == NoIssueFlag && (expecting == ExpectDigitOrEnd || expecting == ExpectLabel)) {
+		printf("%d\n", reg);
 		if (str != NULL) {
 			printf("%s\n", str);
 			free(str);
@@ -61,8 +60,6 @@ void test(FILE *file) {
 		printf("%s\n", str);
 
 	free(line);
-	if (str != NULL)
-		free(str);
 }
 
 void assemble(FILE *file) {

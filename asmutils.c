@@ -51,6 +51,9 @@ Flag extractRParam(char *sourceLine, const int startIndex, const char paramCount
 Flag rangeIParam(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
 Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, char *rs, char *rt, short *immed, char **label);
 
+Flag rangeJParam(char *sourceLine, Expectation *expecting, char *isRegister, int *startIndex, int *endIndex);
+Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, const char isRegister, char *reg, char **label);
+
 /**
  * Scans from a given position of a stream until a new line or terminating
  * character and returns the first SOURCE_LINE_LENGTH characters (or less)
@@ -135,7 +138,7 @@ Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength) {
  * In the case of a syntax error the returned flag and the second parameter
  * can be used to determine what it was while the last two parameters would
  * be equal to the index where the issue was found.
- * Expects the forth parameter to be set to the index from which the scan should
+ * Expects the fourth parameter to be set to the index from which the scan should
  * begin.
  * The third parameter, if there were no issues, would be set to the number of
  * arguments found in this line.
@@ -236,7 +239,7 @@ Flag rangeDataParam(char *sourceLine, Expectation *expecting, int *count, int *s
  * Expects the second parameter to be one of the following expectations:
  * Expect8BitParams, Expect16BitParams, Expect32BitParams.
  * This information is used for the arguments size checking.
- * The forth parameter should be pointing to the position before the
+ * The fourth parameter should be pointing to the position before the
  * arguments start.
  * The third parameter should contain the number of arguments on this line.
  * This function allocates memory on the heap for the last parameter.
@@ -302,7 +305,7 @@ Flag extractDataParam(char *sourceLine, const Expectation expecting, const int c
  * where the issue was found.
  * In case there were no issues the last parameter would contain the extracted
  * arguments and the third parameter would point to the index with the
- * terminating character (the end of the line) while the forth parameter would
+ * terminating character (the end of the line) while the fourth parameter would
  * contain the number of extracted arguments.
  * Expects the third parameter to be positioned before the arguments and the
  * second parameter to be either one of the following expectations:
@@ -464,7 +467,7 @@ Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **
  * In the case of a syntax error the returned flag and the second parameter
  * can be used to determine what it was while the last two parameters would
  * be equal to the index where the issue was found.
- * Expects the forth parameter to be set to the index from which the scan should
+ * Expects the fourth parameter to be set to the index from which the scan should
  * begin and the third index to be set to either 2 or 3.
  */
 Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNumParam, int *startIndex, int *endIndex) {
@@ -590,12 +593,12 @@ Flag extractRParam(char *sourceLine, const int startIndex, const char paramCount
  * Scans a portion of the given source line and extracts the operands
  * into the last three parameters.
  * In case of a syntax error it can be deciphered using the returned flag
- * and the second parameter, also the forth parameter would point to the index
+ * and the second parameter, also the fourth parameter would point to the index
  * where the issue was found.
  * In case there were no issues the last three parameters would contain the
- * extracted operands and the forth parameter would point to the index after
+ * extracted operands and the fourth parameter would point to the index after
  * the operands definition.
- * Expects the forth parameter to be positioned before the operands and the
+ * Expects the fourth parameter to be positioned before the operands and the
  * third parameter to be either 2 or 3, if it is 2 then rt would be untouched.
  */
 Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, int *index, char *rs, char *rt, char *rd) {
@@ -755,7 +758,7 @@ Flag rangeIParam(char *sourceLine, Expectation *expecting, int *startIndex, int 
  * parameter.
  * This function also check if the register addresses are valid, if they
  * are not then InvalidRegisterFlag flag would be returned and no memory
- * would be allocated.
+ * would be allocated, same for the length of the label.
  * Expects the second parameter to be set to the index where the I
  * operands definition begins.
  */
@@ -767,7 +770,7 @@ Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, c
 	/* A pointer to track the position on the line. */
 	char *pointer = sourceLine + startIndex + 1; /* That pointer is immediately set to the first digit of the first operand. */
 	char *temp = NULL; /* A temporary pointer to point to the symbol of the label if there is one. */
-	Flag endStatus = NoIssueFlag;
+	Flag endStatus = NoIssueFlag; /* To detect issues in the source line. */
 
 	value = strtol(pointer, &pointer, DECIMAL); /* Extracting the first operand. */
 	/* Checking if the operand is valid. */
@@ -799,10 +802,12 @@ Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, c
 			return IllegalSymbolFlag; /* Label symbols cannot start with a digit. */
 		/* Allocating memory for the label's symbol. */
 		symbolSize = endIndex - (pointer - sourceLine) + 2;
+		if (symbolSize > MAX_REGISTER + 1) /* + 1 for a terminating character. */
+			return IllegalSymbolFlag; /* Label symbols cannot be longer than 31. */
 		if ((temp = malloc(symbolSize)) == NULL)
 			return HardwareErrorFlag; /* Cannot continue without memory. */
 
-		/* The following loop copies the symbol from the given line to the last parameter. */
+		/* The following loop copies the symbol from the given line to the temporary array. */
 		for (destIndex = 0; destIndex < symbolSize - 1; destIndex++, pointer++){
 			temp[destIndex] = *pointer;
 		}
@@ -839,7 +844,7 @@ Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, c
  * In case there were no issues the last four parameters would contain the
  * extracted operands and the third parameter would point to the index after
  * the operands definition.
- * Expects the forth parameter to be positioned before the operands.
+ * Expects the fourth parameter to be positioned before the operands.
  * This function may or may not allocate memory on the heap for the last
  * parameter based on what the operands are. If the last operand is a label
  * then memory would be allocated (if there were no errors), and if the
@@ -858,6 +863,185 @@ Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, c
 	/* If no syntax issues were found the operand would be extracted. */
 	if (endStatus == NoIssueFlag && (*expecting == ExpectDigitOrEnd || *expecting == ExpectLabel))
 		endStatus = extractIParam(sourceLine, startIndex, endIndex, rs, rt, immed, label);
+	else
+		/* If there is a syntax error then the index would be set to that position. */
+		*index = endIndex;
+
+	return endStatus;
+}
+
+/**
+ * Scans a portion from the given source line to find the range of indexes
+ * between which the operands for J type operators is located, all while
+ * checking for syntax errors.
+ * Should return NoIssueFlag flag if there was no issue and the second
+ * parameter should be set to ExpectDigitOrEnd or ExpectLabel with the two last
+ * parameters set to the range of indexes between which the operands are coded
+ * (including).
+ * In the case of a syntax error the returned flag and the second parameter
+ * can be used to determine what it was while the last two parameters would
+ * be equal to the index where the issue was found.
+ * Expects the fourth parameter to be set to the index from which the scan should
+ * begin.
+ */
+Flag rangeJParam(char *sourceLine, Expectation *expecting, char *isRegister, int *startIndex, int *endIndex) {
+	int index; /* Tracks the index of every character in the given line. */
+	char c; /* For readability purposes. */
+	char isSpaceAllowed = 1; /* To track parts were spaces or tabs can be. */
+	char isLineEmpty = 1; /* To track if this part of the line is empty or not. */
+	Flag endStatus = NoIssueFlag; /* To detect issues in the source code. */
+
+	*expecting = ExpectDollarSign; /* Expecting the beginning of the operand, but it is not necessarily a register. */
+	*isRegister = 0; /* The operand is yet to be scanned. */
+
+	for (index = *startIndex; sourceLine[index] != TERMINATING_CHAR; index++) {
+		c = sourceLine[index];
+		if (c == SPACE || c == TAB) { /* Current character is space or tab. */
+			if (!isSpaceAllowed) {
+				endStatus = IllegalSpacingFlag;
+				break; /* Found illegally positioned space or tab. */
+			}
+			/*
+			 * Setting the beginning of the range based on if the current position
+			 * is before the operands.
+			 */
+			if (isLineEmpty)
+				*startIndex = index + 1;
+
+			if (*expecting == ExpectDigitOrEnd || *expecting == ExpectLabel)
+				break; /* Operand was scanned successfully. */
+			continue;
+		}
+		if (c == COMMENT) { /* Current character is a semicolon. */
+			endStatus = StrayCommentFlag;
+			break; /* A comment must have a dedicated line. */
+		}
+		if (c == DOLLAR_SIGN) { /* Current character is a dollar sign. */
+			if (*expecting != ExpectDollarSign) {
+				endStatus = StrayDollarSignFlag;
+				break; /* Found illegally positioned dollar sign. */
+			}
+			isSpaceAllowed = 0; /* Cannot have a space between operand declaration and its value. */
+			isLineEmpty = 0; /* The line is not empty. */
+			*isRegister = 1; /* The operand is a register. */
+			*expecting = ExpectDigit; /* The next character should be a digit. */
+			continue;
+		}
+		if (isdigit(c)) { /* Current character is a digit. */
+			if (*expecting != ExpectDigit && *expecting != ExpectLabel && *expecting != ExpectDigitOrEnd) {
+				if (*expecting == ExpectDollarSign)
+					endStatus = IllegalSymbolFlag; /* A label symbol cannot start with a digit. */
+				else
+					endStatus = StrayDigitFlag; /* Just in case. */
+				break; /* Found illegally positioned digit. */
+			}
+			if (*isRegister)
+				*expecting = ExpectDigitOrEnd;
+			isSpaceAllowed = 1; /* Spaces would indicate that the operand is over. */
+			continue;
+		}
+		if (isalpha(c)) {
+			if (*expecting != ExpectLabel && *expecting != ExpectDollarSign) { /* A label can appear instead of a register. */
+				endStatus = UnexpectedFlag;
+				break; /* Found an unexpected token; */
+			}
+			*expecting = ExpectLabel; /* The operand is a label. */
+			isLineEmpty = 0; /* The line is not empty. */
+			continue;
+		}
+		endStatus = UnexpectedFlag;
+		break; /* Found an unexpected token, that is any other character. */
+	}
+
+	*endIndex = index - 1; /* Setting the end of the range. */
+
+	/* Checking if an issue was found. */
+	if (endStatus != NoIssueFlag || (*expecting != ExpectDigitOrEnd && *expecting != ExpectLabel))
+		*startIndex = *endIndex = index; /* Getting the position of the issue. */
+	return endStatus;
+}
+
+/**
+ * Uses the given range to scan for the operand from the given line and
+ * returns it through one of the last two parameters.
+ * If the operand is a label then reg would remain untouched,
+ * and if the operand is a register then the last parameter
+ * would be a null pointer.
+ * This function may or may not allocate memory on the heap for the last
+ * parameter.
+ * This function also check if the register address is valid, if it is
+ * not then InvalidRegisterFlag flag would be returned and no memory
+ * would be allocated, same for the length of the label.
+ * Expects the second parameter to be set to the index where the J
+ * operand definition begins and the fifth parameter to be set to 1
+ * if the operand to extract is a register and 0 if it is a label.
+ */
+Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, const char isRegister, char *reg, char **label) {
+	int destIndex; /* To track the temporary array of the symbol */
+	int symbolSize; /* To store the length of the symbol array. */
+	long int value = 0; /* To store every extracted value to check limits before assignment. */
+	char *pointer; /* A pointer to track the position on the line. */
+	char *temp = NULL; /* A temporary pointer to point to the symbol of the label if there is one. */
+	Flag endStatus = NoIssueFlag; /* To detect issues in the source line. */
+
+	if (isRegister) { /* The Operand is a register. */
+		/* Setting the pointer to the first digit of the operand right after the dollar sign. */
+		pointer = sourceLine + startIndex + 1;
+
+		value = strtol(pointer, &pointer, DECIMAL); /* Extracting the operand. */
+		/* Checking if the operand is valid. */
+		if (value < 0 || value > MAX_REGISTER)
+			return InvalidRegisterFlag; /* The operand is not valid. */
+		*reg = value; /* The operand is valid. */
+	} else { /* The Operand is a label. */
+		pointer = sourceLine + startIndex;
+		symbolSize = endIndex - startIndex + 2;
+		if (symbolSize > MAX_REGISTER + 1) /* + 1 for a terminating character. */
+			return IllegalSymbolFlag; /* Label symbols cannot be longer than 31. */
+		if ((temp = malloc(symbolSize)) == NULL) /* Allocating memory to store the symbol. */
+			return HardwareErrorFlag; /* Cannot continue without memory. */
+
+		/* The following loop copies the symbol from the given line to the temporary array. */
+		for (destIndex = 0; destIndex < symbolSize - 1; destIndex++, pointer++){
+			temp[destIndex] = *pointer;
+		}
+		/* Adding the terminating character at the end. */
+		temp[destIndex] = TERMINATING_CHAR;
+	}
+
+	*label = temp; /* Assigning the symbol to the return parameter, if there was one. Null if otherwise. */
+	return endStatus;
+}
+
+/**
+ * Scans a portion of the given source line and extracts the operand into
+ * one of the last two parameters.
+ * In case of a syntax error it can be deciphered using the returned flag
+ * and the second parameter, also the third parameter would point to the index
+ * where the issue was found.
+ * In case there were no issues one of the last two parameters would contain the
+ * extracted operand and the third parameter would point to the index after
+ * the operands definition.
+ * Expects the third parameter to be positioned before the operands.
+ * This function may or may not allocate memory on the heap for the last
+ * parameter based on what the operand is. If the operand is a label then
+ * memory would be allocated (if there were no errors), and if the
+ * operand is a register then the last parameter would be set to a
+ * null pointer while the fourth parameter would point to the register's address.
+ */
+Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, char **label) {
+	int startIndex = *index; /* The beginning of the range. */
+	int endIndex = *index; /* The ending of the range. */
+	char isRegister = 0;
+	Flag endStatus; /* To detect issues in the source line. */
+
+	/* Getting the range of indexes between which the operand is defined. */
+	endStatus = rangeJParam(sourceLine, expecting, &isRegister, &startIndex, &endIndex);
+	*index = endIndex + 1; /* Setting the index to the character after the operand. */
+
+	/* If no syntax issues were found the operand would be extracted. */
+	if (endStatus == NoIssueFlag && (*expecting == ExpectDigitOrEnd || *expecting == ExpectLabel))
+		endStatus = extractJParam(sourceLine, startIndex, endIndex, isRegister, reg, label);
 	else
 		/* If there is a syntax error then the index would be set to that position. */
 		*index = endIndex;
