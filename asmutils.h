@@ -45,6 +45,7 @@ typedef enum {
     IncompleteStringFlag, /* For cases where the string has only a begin quote. */
     InvalidRegisterFlag, /* For invalid registers. */
     SizeOverflowFlag, /* For cases where a value is too big to be assigned. */
+    IllegalSymbolFlag, /* For invalid label symbols. */
     HardwareErrorFlag /* For memory allocation issues. */
 } Flag;
 
@@ -58,6 +59,7 @@ typedef enum {
 	ExpectDigit, /* The next character should be a digit. */
 	ExpectDigitOrComma, /* The next character should be a digit or a comma. */
     ExpectDigitOrSign, /* The next character should be a digit or a plus or a minus. */
+    ExpectDigitOrSignOrDollarSign, /* The next character can be one of those in the enumeration's name. */
 	ExpectComma, /* The next character should be a comma. */
 	ExpectDigitOrEnd, /* The next part should be a digit or an ending. */
     Expect8BitParams, /* The next part should be signed 8 bit parameters. */
@@ -127,6 +129,24 @@ Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **
  * third parameter to be either 2 or 3, if it is 2 then rt would be untouched.
  */
 Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, int *index, char *rs, char *rt, char *rd);
+
+/**
+ * Scans a portion of the given source line and extracts the operands
+ * into the last four parameters.
+ * In case of a syntax error it can be deciphered using the returned flag
+ * and the second parameter, also the third parameter would point to the index
+ * where the issue was found.
+ * In case there were no issues the last four parameters would contain the
+ * extracted operands and the third parameter would point to the index after
+ * the operands definition.
+ * Expects the forth parameter to be positioned before the operands.
+ * This function may or may not allocate memory on the heap for the last
+ * parameter based on what the operands are. If the last operand is a label
+ * then memory would be allocated (if there were no errors), and if the
+ * second operand is an immediate value then the last parameter would be
+ * set to a null pointer.
+ */
+Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, char *rt, short *immed, char **label);
 
 /**
  * Checks if the extension of the given file's name is an assembly source
