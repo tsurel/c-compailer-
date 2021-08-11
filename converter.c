@@ -29,8 +29,6 @@ void test(FILE *file) {
 	int index = -1;
 	char *line = malloc(SOURCE_LINE_LENGTH + 1);
 	char *str = NULL;
-	char reg = 0;
-
 
 	if (line == NULL)
 		exit(EXIT_FAILURE);
@@ -39,11 +37,10 @@ void test(FILE *file) {
 	printf("%s\n", line);
 
 	index = 0;
-	flag = getJParam(line, &expecting, &index, &reg, &str);
+	flag = getWord(line, &expecting, &index, &str);
 
 	printf("%d\t%d\t%d\n", flag, expecting, index);
-	if (flag == NoIssueFlag && (expecting == ExpectDigitOrEnd || expecting == ExpectLabel)) {
-		printf("%d\n", reg);
+	if ((flag == LabelFlag || flag == InstructorFlag || flag == OperatorFlag) && expecting == ExpectEnd) {
 		if (str != NULL) {
 			printf("%s\n", str);
 			free(str);
