@@ -1098,13 +1098,14 @@ Code isValid(const char *fileName) {
  * This function allocates memory on the heap for the last parameter.
  */
 Flag extractWord(char *sourceLine, const Expectation expecting, const int startIndex, const int endIndex, void **args) {
+	Flag endStatus = NoIssueFlag;
 	int index; /* Index on the line (source). */
 	int paramIndex = 0; /* Index on the word parameter (destination). */
 	char *temp; /* Temporary array to copy the word to. */
 
 	temp = malloc(endIndex - startIndex); /* Allocating memory for the word. */
 	if (temp == NULL)
-		return; /* Cannot continue without memory. */
+		endStatus = HardwareErrorFlag; /* Cannot continue without memory. */
 
 	/* The following loop copies the word from the given line to the temporary array. */
 	for (index = startIndex + 1; index < endIndex; index++, paramIndex++){
@@ -1114,6 +1115,7 @@ Flag extractWord(char *sourceLine, const Expectation expecting, const int startI
 	/* Adding the terminating character at the end. */
 	temp[paramIndex] = TERMINATING_CHAR;
 	*args = temp; /* Setting the last parameter to point to that array. */
+	return endStatus;
 }
 
 
@@ -1149,7 +1151,7 @@ Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *e
 			continue;
 		}
 		if (c == COMMENT) { /* Current character is a semicolon. */
-			endStatus = CommentLineFlag;
+			*expecting = ExpectComment;
 			break; /* A comment must have a dedicated line. */
 		}
 	
