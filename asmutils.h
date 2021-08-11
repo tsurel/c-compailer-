@@ -58,6 +58,7 @@ typedef enum {
 	ExpectDollarSign, /* The next character should be a dollar sign. */
 	ExpectDigit, /* The next character should be a digit. */
 	ExpectDigitOrComma, /* The next character should be a digit or a comma. */
+	ExpectDigitOrLetter, /* he next character should be a digit or a letter. */
     ExpectDigitOrSign, /* The next character should be a digit or a plus or a minus. */
     ExpectDigitOrSignOrDollarSign, /* The next character can be one of those in the enumeration's name. */
 	ExpectComma, /* The next character should be a comma. */
@@ -65,6 +66,7 @@ typedef enum {
     Expect8BitParams, /* The next part should be signed 8 bit parameters. */
     Expect16BitParams, /* The next part should be signed 16 bit parameters. */
     Expect32BitParams, /* The next part should be signed 32 bit parameters. */
+	ExpectWord, /* The next part should be a vaild Label, instructor or operator. */ 
     ExpectString, /* The next part should be a string declaration. */
     ExpectLabel, /* The next part should be a label symbol. */
     ExpectQuote /* The next part should be a string definition. */
@@ -167,11 +169,57 @@ Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, c
 Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, char **label);
 
 /**
+ * Scans a portion from the given source line to find the range of indexes
+ * between which the word is located, all while checking for syntax errors.
+ * Should return NoIssueFlag flag if there was no issue. the second
+ * parameter should be set to ExpectEnd, and the two last parameters set
+ * to the range of indexes between which the word is coded (including).
+ * In case of a syntax error, the returned flag and the second parameter
+ * can be used to determine what's the problem  while the last two parameters would
+ * be equal to the index where the issue was found.
+ * The function expects the third parameter to be set to the index which the scan
+ * should begin from.
+ */
+
+/**
+ * Scans a portion from the given source line to find the range of indexes
+ * between which the word is located, all while checking for syntax errors.
+ * Should return NoIssueFlag flag if there was no issue. the second
+ * parameter should be set to ExpectEnd, and the two last parameters set
+ * to the range of indexes between which the word is coded (including).
+ * In case of a syntax error, the returned flag and the second parameter
+ * can be used to determine what's the problem  while the last two parameters would
+ * be equal to the index where the issue was found.
+ * The function expects the third parameter to be set to the index which the scan
+ * should begin from.
+ */
+Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
+
+Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
+
+/**
+ * Scans a portion of the given source line and extracts the word
+ * into the last parameter if there were no syntax errors.
+ * In case of a syntax error, the function can be extracted using the returned flag
+ * and the third parameter would point to the index where the issue was found.
+ * In case there were no issues, the last parameter would contain the extracted
+ * word, the third parameter would point to the index with the terminating character,
+ * (the end of the line).
+ * Expects the third parameter to be positioned before the word and the
+ * second parameter to be ExpectEnd. This information will be useful for the map 
+ * and convert functions.
+ * 
+ */
+Flag getWord(char *sourceLine, Expectation *expecting, int *index, void **args);
+
+/**
  * Checks if the extension of the given file's name is an assembly source
  * code file, in other words if the given string ends with ".as".
  * Returns SUCCESS if the given file name is a valid assembly source code
  * name and ERROR otherwise.
  */
+
+
 Code isValid(const char *fileName);
 
 #endif
