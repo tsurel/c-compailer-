@@ -24,6 +24,8 @@
 #define MIN_SIGNED_HALF -32768 /* Minimum value for a signed half word. */
 #define MAX_SIGNED_WORD 2147483647 /* Maximum value for a signed word. */
 #define MIN_SIGNED_WORD -2147483648 /* Minimum value for a signed word. */
+#define MAX_LABEL_LENGTH 31 /* the maximum allowed length for first word in a row */
+
 /* Syntax characters */
 #define NEW_LINE '\n'
 #define COMMENT ';'
@@ -53,6 +55,11 @@ Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, c
 
 Flag rangeJParam(char *sourceLine, Expectation *expecting, char *isRegister, int *startIndex, int *endIndex);
 Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, const char isRegister, char *reg, char **label);
+
+Flag extractWord(char *sourceLine, const Expectation expecting, const int startIndex, const int endIndex, void **args);
+Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
+Flag getWord(char *sourceLine, Expectation *expecting, int *index, void **args);
+
 
 /**
  * Scans from a given position of a stream until a new line or terminating
@@ -1075,4 +1082,130 @@ Code isValid(const char *fileName) {
 	 */
 	return strcmp(extension, FILE_EXTENSION) == 0 ? SUCCESS : ERROR;
 
+}
+
+
+
+/**
+ * Uses the given start index to scan for the word from the given line
+ * and returns it  through the last parameter, while checking for
+ * sizes issues.
+ * if there are no issues the return flag should be NoIssueFlag flag.
+ * Expects the second parameter to be expectEnd.
+ * This information is used for the word size checking.
+ * The third parameter should be pointing to the position before the
+ * word start.
+ * This function allocates memory on the heap for the last parameter.
+ */
+Flag extractWord(char *sourceLine, const Expectation expecting, const int startIndex, const int endIndex, void **args) {
+	int index; /* Index on the line (source). */
+	int paramIndex = 0; /* Index on the word parameter (destination). */
+	char *temp; /* Temporary array to copy the word to. */
+
+	temp = malloc(endIndex - startIndex); /* Allocating memory for the word. */
+	if (temp == NULL)
+		return; /* Cannot continue without memory. */
+
+	/* The following loop copies the word from the given line to the temporary array. */
+	for (index = startIndex + 1; index < endIndex; index++, paramIndex++){
+		temp[paramIndex] = sourceLine[index];
+	}
+
+	/* Adding the terminating character at the end. */
+	temp[paramIndex] = TERMINATING_CHAR;
+	*args = temp; /* Setting the last parameter to point to that array. */
+}
+
+
+/**
+ * Scans a portion from the given source line to find the range of indexes
+ * between which the word is located, all while checking for syntax errors.
+ * Should return NoIssueFlag flag if there was no issue. the second
+ * parameter should be set to ExpectEnd, and the two last parameters set
+ * to the range of indexes between which the word is coded (including).
+ * In case of a syntax error, the returned flag and the second parameter
+ * can be used to determine what's the problem  while the last two parameters would
+ * be equal to the index where the issue was found.
+ * The function expects the third parameter to be set to the index which the scan
+ * should begin from.
+ */
+Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex) {
+	int index; /* Tracks the index of every character in the given line. */
+	char c; /* For readability purposes. */
+	char isLineEmpty = 0; /* check if The line is empty. */
+
+	Flag endStatus = NoIssueFlag; /* To detect issues in the source code. */
+	*expecting = ExpectWord; /* Expecting a vaild Label, instructor or operator. */
+
+	for (index = *startIndex; sourceLine[index] != (TERMINATING_CHAR || NEW_LINE); index++) {
+		c = sourceLine[index];
+
+		if (c == SPACE && isLineEmpty == 0) { /* Current character is space, but no text had readen yet. */
+			/*
+			 * Setting the beginning of the range based on if the current position
+			 * is before the parameters definition.
+			 */
+			*startIndex = index + 1;
+			continue;
+		}
+		if (c == COMMENT) { /* Current character is a semicolon. */
+			endStatus = CommentLineFlag;
+			break; /* A comment must have a dedicated line. */
+		}
+	
+		if (isalpha(c)) { /* Current character is a letter. */
+			isLineEmpty = 1;  /* The line is not empty. */
+			*expecting = ExpectDigitOrletter; /* The next character can be a digit or a letter. */
+			continue;
+		}
+		if (c == SPACE && isLineEmpty == 1) { /* Current character is space , so it's the end of word. */
+			break;
+		}
+		
+		endStatus = UnexpectedFlag;
+		break; /* Found an unexpected character. */
+	}
+	
+
+	*endIndex = index - 1; /* Setting the end of the range. */
+
+	/* Checking if an issue was found. */
+	if (endStatus != NoIssueFlag || (*expecting != ExpectDigitOrletter && *expecting != ExpectComment))
+		*startIndex = *endIndex = index; /* Getting the position of the issue. */
+	else
+		*expecting = ExpectEnd; /* Making checking for issues easier outside this function. */
+
+	return endStatus;
+}
+
+/**
+ * Scans a portion of the given source line and extracts the word
+ * into the last parameter if there were no syntax errors.
+ * In case of a syntax error, the function can be extracted using the returned flag
+ * and the third parameter would point to the index where the issue was found.
+ * In case there were no issues, the last parameter would contain the extracted
+ * word, the third parameter would point to the index with the terminating character,
+ * (the end of the line).
+ * Expects the third parameter to be positioned before the word and the
+ * second parameter to be ExpectEnd. This information will be useful for the map 
+ * and convert functions.
+ * 
+ */
+Flag getWord(char *sourceLine, Expectation *expecting, int *index, void **args) {
+	int startIndex = *index; /* The beginning of the range. */
+	int endIndex = *index; /* The ending of the range. */
+	Flag endStatus; /* To detect issues in the source line. */
+	Expectation sizeExpectation = *expecting; /* to know the size of the word */
+
+	/* Getting the range of indexes between which the word are exist. */
+	endStatus = rangeWord(sourceLine, expecting, &startIndex, &endIndex);
+	*index = endIndex + 1; /* Setting the index to the position of the terminating character. */
+
+	/* If no syntax issues were found the word would be extracted. */
+	if (endStatus == NoIssueFlag && *expecting == ExpectEnd)
+		endStatus = extractWord(sourceLine, sizeExpectation, startIndex, endIndex, args);
+	else
+		/* If there is a syntax error then the index would be set to its position. */
+		*index = endIndex;
+	return endStatus;
 }
