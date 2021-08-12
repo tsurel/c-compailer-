@@ -46,7 +46,7 @@ int main(int argc, char const *argv[]) {
 			continue;
 		}
 		/* Assembling the file. */
-		assemble(file);
+		assemble(file, argv[index]);
 		/* Closing the file. */
 		fclose(file);
 	}

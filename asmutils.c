@@ -11,8 +11,6 @@
  * These functions are relevant for reading from the source file.
  */
 
-#define FILE_EXTENSION ".as" /* The extension for the assembly source files. */
-#define FILE_EXTENSION_LEN 3 /* The length of the assembly source file extension. */
 #define DECIMAL 10 /* Decimal base, used for conversion from text to integer. */
 #define MAX_REGISTER 31 /* The highest register on the CPU. */
 #define BYTE_SIZE 1 /* Arguments size for the db instructor. */

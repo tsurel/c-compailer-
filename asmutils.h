@@ -15,6 +15,9 @@
 #define R3 3 /* Number of expected operands for some R operators. */
 /* Maximum source line length. */
 #define SOURCE_LINE_LENGTH 80 /* Source line limit. */
+/* Others. */
+#define FILE_EXTENSION ".as" /* The extension for the assembly source files. */
+#define FILE_EXTENSION_LEN 3 /* The length of the assembly source file extension. */
 
 /**
  * The error code data type can be ERROR or SUCCESS and is returned by

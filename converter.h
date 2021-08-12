@@ -5,6 +5,6 @@
  * An header file for the converter translation unit.
  */
 
-void assemble(FILE *file);
+void assemble(FILE *file, const char *fileName);
 
 #endif
