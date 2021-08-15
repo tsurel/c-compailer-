@@ -209,7 +209,7 @@ Code initasmKeywords() {
 		".db", ".dh", ".dw", ".asciz", ".entry", ".extern"
 	};
 	Expectation expectations[] = { /* Expectations for every instructor matching by index. */
-		Expect8BitParams, Expect16BitParams, Expect32BitParams, ExpectString, ExpectLabel, ExpectLabel
+		Expect8BitParams, Expect16BitParams, Expect32BitParams, ExpectString, ExpectLabelEntry, ExpectLabelExternal
 	};
 
 	/*

@@ -75,7 +75,9 @@ typedef enum {
 	ExpectWord, /* The next part should be the beginning of the source line. */ 
     ExpectString, /* The next part should be a string declaration. */
     ExpectLabel, /* The next part should be a label symbol. */
-    ExpectQuote /* The next part should be a string definition. */
+    ExpectQuote, /* The next part should be a string definition. */
+    ExpectLabelExternal, /* An expectation for the .extern keyword. */
+    ExpectLabelEntry /* An expectation for the .entry keyword. */
 } Expectation;
 
 /**

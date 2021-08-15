@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "symboltable.h"
 #include "asmutils.h"
@@ -23,7 +24,7 @@ SymbolTable *createSymbol(char *symbol, unsigned address);
  */
 struct symbolt {
 	char *symbol; /* Stores the symbol of that label. */
-	unsigned address; /* Stores the memory address of that label. */
+	unsigned long int address; /* Stores the memory address of that label. */
 	unsigned char attributes[ATTRS_PER_LABEL]; /* Stores the attributes codes of that label. */
 	struct symbolt *next; /* A pointer to the next label. */
 };
@@ -31,7 +32,7 @@ struct symbolt {
 /**
  * Returns the address of the given label.
  */
-unsigned getAddress(SymbolTable *symbolTable) {
+unsigned long int getAddress(SymbolTable *symbolTable) {
 	return symbolTable->address;
 }
 
@@ -48,6 +49,23 @@ char *getSymbol(SymbolTable *symbolTable) {
  */
 SymbolTable *getNext(SymbolTable *symbolTable) {
 	return symbolTable->next;
+}
+
+/**
+ * Searches through the given symbol table for the label that
+ * has the same symbol as the given string.
+ * Returns a pointer to that label if there is one with a
+ * matching symbol, null if otherwise.
+ */
+SymbolTable *searchLabel(SymbolTable *symbolTable, char *symbol) {
+	/* Looping through the elements in the data structure. */
+	while (symbolTable != NULL) {
+		if (strcmp(symbolTable->symbol, symbol) == 0)
+			/* If a label with an identical symbol was found a pointer to it would be returned. */
+			return symbolTable;
+		symbolTable = symbolTable->next; /* Continuing to the next element. */
+	}
+	return NULL; /* No matching label was found, a null pointer is returned. */
 }
 
 /**
@@ -159,6 +177,7 @@ void freeSymbolTable(SymbolTable *symbolTable) {
 		*/
 		temp = symbolTable;
 		symbolTable = symbolTable->next;
+		free(temp->symbol);
 		free(temp);
 	}
 }

@@ -30,7 +30,7 @@ typedef enum {
 /**
  * Returns the address of the given label.
  */
-unsigned getAddress(SymbolTable *symbolTable);
+unsigned long int getAddress(SymbolTable *symbolTable);
 
 /**
  * Returns the string representation of the given label.
@@ -42,6 +42,22 @@ char *getSymbol(SymbolTable *symbolTable);
  * The labels are sorted the way they were added.
  */
 SymbolTable *getNext(SymbolTable *symbolTable);
+
+/**
+ * Searches through the given symbol table for the label that
+ * has the same symbol as the given string.
+ * Returns a pointer to that label if there is one with a
+ * matching symbol, null if otherwise.
+ */
+SymbolTable *searchLabel(SymbolTable *symbolTable, char *symbol);
+
+/**
+ * Checks if the given label has the given attribute, if it does then
+ * a SUCCESS code would be returned. If the given label does not have
+ * the given attribute assign to it then ERROR would be returned
+ * instead.
+ */
+Code hasAttribute(SymbolTable *symbolTable, LabelAttribute labelAttribute);
 
 /**
  * Adds a new label to the given symbol table and assigns it the given
