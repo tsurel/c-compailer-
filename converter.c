@@ -7,6 +7,7 @@
 #include "symboltable.h"
 #include "asmutils.h"
 #include "keywords.h"
+#include "errmsg.h"
 
 /**
  * The converter translation unit is responsible for managing the assembling
@@ -20,7 +21,7 @@
 /**
  * The following functions should not be used outside this translation unit.
  */
-Code map(FILE *file, SymbolTable *symboltable);
+Code map(FILE *file, SymbolTable *symboltable, char *sourceLine);
 void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *sourceLine, const unsigned long int ic, const unsigned long int dc);
 void extractOutputFileNames(const char *sourceFileName, char **obFileName, char **entFileName, char **extFileName);
 void assembleR(FILE *output, unsigned long int address, Operator *op, char rs, char rt, char rd);
@@ -58,7 +59,7 @@ void test(FILE *file) {
 
 	index = -1;
 	flag = extractSourceLine(file, line, &index);
-	printf("%s\n", line);
+	printf("%s\n%d\n", line, flag);
 	index = 0;
 	flag = getAscizParam(line, &expecting, &index, &str);
 	printf("%d\t%d\t%d\n", flag, expecting, index);
@@ -72,17 +73,35 @@ void assemble(FILE *file, const char *fileName) {
 	test(file);
 }
 
-Code map(FILE *file, SymbolTable *symboltable) {
-	return 0;
+/* Unfinished. */
+Code map(FILE *file, SymbolTable *symboltable, char *sourceLine) {
+	Code code = SUCCESS; /* Error code to track issues. */
+	char shouldStop = 0; /* To track when the loop should stop meaning, the source file has ended */
+	int index; /* An index to track the position on the line. */
+	unsigned long int lineNum = 0; /* To track the line number. */
+	/*Expectation expecting;  To differentiate different situations and catch issues. */
+	Flag status; /* To differentiate different situations and catch issues. */
+
+	while (!shouldStop) {
+		index = -1; /* The line start at index 0. */
+		lineNum++; /* This is a new line. */
+
+		if ((status = extractSourceLine(file, sourceLine, &index)) == EndFileFlag) /* TODO, adjust extractSourceLine function, @PARAM Event. */
+			shouldStop = 1; /* This is the last line in the source file. */
+
+		index = 0;
+	}
+
+	return code;
 }
 
 /* Unfinished and untested, requires map to be tested. */
 void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *sourceLine, const unsigned long int ic, const unsigned long int dc) {
 	const char assembledLineSize = 4; /* The size for the bit field in the output file. */
 	const char *stopOperator = "stop"; /* Special case keyword, no operands. */
-	int index;
+	int index; /* An index to track the position on the line. */
 	int lengthCheck = -1; /* A variable to use the extractSourceLine function. */
-	int count;
+	int count; /* Used for counting arguments for db, dh, and dw keywords. */
 	unsigned long int address = 100; /* To track the memory address of the assembled operators in the output file. */
 	char shouldStop = 0; /* To track when the loop should stop meaning, the source file has ended */
 	char *word = NULL; /* A variable to store the labels\Instructors\Operators returned from getWord. */
@@ -106,9 +125,13 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 	extractOutputFileNames(fileName, &obFileName, &entFileName, &extFileName);
 
 	outputObj = fopen(obFileName, "w+"); /* Creating/recreating the output file. */
+	if (outputObj == NULL)
+		errFatal(); /* cannot continue without the output file. */
 	if ((dataSegment = malloc(dc)) == NULL) { /* Allocating memory for the data segment. */
-		exit(EXIT_FAILURE); /* Cannot continue without memory. */
+		errFatal(); /* Cannot continue without memory. */
 	}
+
+	fprintf(outputObj, "     %lX %lX\n", ic, dc);
 
 	while (!shouldStop) {
 		index = 0; /* The line start at index 0. */
@@ -140,7 +163,7 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 				/* Extracting the data from the line as operand set for I operators. */
 				status = getIParam(sourceLine, &expecting, &index, &rs, &rt, &immed, &symbol);
 				if (status == HardwareErrorFlag) {
-					exit(EXIT_FAILURE); /* Memory allocation had failed, cannot continue the program. */
+					errFatal(); /* Memory allocation had failed, cannot continue the program. */
 				}
 				if (symbol != NULL) { /* If one of the operands is a label. */
 					label = searchLabel(symboltable, symbol); /* Extracting the label. */
@@ -155,7 +178,7 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 				/* Extracting the data from the line. */
 				status = getJParam(sourceLine, &expecting, &index, &rs, &symbol);
 				if (status == HardwareErrorFlag) {
-					exit(EXIT_FAILURE); /* Memory allocation had failed, cannot continue the program. */
+					errFatal(); /* Memory allocation had failed, cannot continue the program. */
 				}
 				if (symbol != NULL) { /* If the operand is a label. */
 					label = searchLabel(symboltable, symbol); /* Extracting the label from the symbol table. */
@@ -165,14 +188,14 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 						if (outputEnt == NULL) { /* If that file was not created yet then it would be created. */
 							outputEnt = fopen(entFileName, "w+"); /* Creating\recreating the output file. */
 							if (outputEnt == NULL)
-								exit(EXIT_FAILURE); /* should not happen but, just in case. */
+								errFatal(); /* should not happen but, just in case. */
 						}
 						writePlain(outputEnt, getSymbol(label), address); /* Writing to the entry file. */
 					} else if (hasAttribute(label, ExternLabel) == SUCCESS) {
 						if (outputExt == NULL) { /* If that file was not created yet then it would be created. */
 							outputExt = fopen(extFileName, "w+"); /* Creating\recreating the output file. */
 							if (outputExt == NULL)
-								exit(EXIT_FAILURE); /* should not happen but, just in case. */
+								errFatal(); /* should not happen but, just in case. */
 						}
 						writePlain(outputExt, getSymbol(label), address); /* Writing to the extern file. */
 					}
@@ -187,7 +210,7 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 			if (expecting == ExpectString) {
 				status = getAscizParam(sourceLine, &expecting, &index, &symbol); /* Extracting the string. */
 				if (status == HardwareErrorFlag) {
-					exit(EXIT_FAILURE); /* Memory allocation had failed, cannot continue the program. */
+					errFatal(); /* Memory allocation had failed, cannot continue the program. */
 				}
 				assembleAsciz(dataSegment, symbol, &dataSegmentIndex); /* Copying the string to the data segment, it will be added to the output file at the end. */
 				free(symbol); /* Avoiding memory leaks. */

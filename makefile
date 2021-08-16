@@ -1,8 +1,8 @@
 CC = gcc
 CFLAGS = -Wall -ansi -pedantic
 
-assembler: assembler.o converter.o symboltable.o keywords.o asmutils.o utils.o
-	$(CC) $(CFLAGS) assembler.o converter.o symboltable.o keywords.o asmutils.o utils.o -o assembler
+assembler: assembler.o converter.o symboltable.o keywords.o asmutils.o errmsg.o utils.o
+	$(CC) $(CFLAGS) assembler.o converter.o symboltable.o keywords.o asmutils.o errmsg.o utils.o -o assembler
 
 assembler.o: assembler.c converter.h
 	$(CC) -c $(CFLAGS) assembler.c -o assembler.o
@@ -18,6 +18,9 @@ keywords.o: keywords.c keywords.h asmutils.h
 
 asmutils.o: asmutils.c asmutils.h utils.h
 	$(CC) -c $(CFLAGS) asmutils.c -o asmutils.o
+
+errmsg.o: errmsg.c errmsg.h asmutils.h
+	$(CC) -c $(CFLAGS) errmsg.c -o errmsg.o
 
 utils.o: utils.c utils.h
 	$(CC) -c $(CFLAGS) utils.c -o utils.o
