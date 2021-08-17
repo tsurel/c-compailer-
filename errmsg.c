@@ -3,11 +3,20 @@
 
 #include "errmsg.h"
 #include "asmutils.h"
+#include "keywords.h"
+#include "symboltable.h"
 
 /**
  * The errmsg translation unit is responsible for printing error
  * messages for the user to see.
  */
+
+/**
+ * The following functions should not be used outside this translation unit.
+ */
+void printMsgTitle(const char *fileName, unsigned long int line, int index);
+void printLine(const char *sourceLine, unsigned long int line, int index);
+void errUnexpected();
 
 /**
  * Prints a title for the error message with the given file name
@@ -21,11 +30,15 @@ void printMsgTitle(const char *fileName, unsigned long int line, int index) {
 /**
  * Prints the given source line with an pointer underneath the
  * position of the issue (using the given index) and, the line
- * number at the beginning.
+ * number at the beginning. If the given index is smaller than
+ * 0 then there will not be a pointer underneath the lint.
  */
 void printLine(const char *sourceLine, unsigned long int line, int index) {
 	int i; /* For the loop that places the pointer. */
 	printf("%08ld |%s\n", line, sourceLine); /* Printing the line. */
+
+	if (index < 0)
+		return; /* Only the line should be printed. */
 
 	/* Printing the pointer bellow the position of the issue. */
 	for (i = 1; i < index && i < SOURCE_LINE_LENGTH; i++)
@@ -294,6 +307,8 @@ Event errCheckWord(const char *fileName, const char *sourceLine, unsigned long i
 	Event event = NEvent; /* No errors by default, used for tracking the error type. */
 	if ((status == LabelFlag || status == InstructorFlag || status == OperatorFlag || status == CommentLineFlag) && expecting == ExpectEnd)
 		return event; /* No errors were found, nothing was printed. */
+	if (status == OperatorFlag && expecting == ExpectWord)
+		return event; /* The line is empty. */
 
 	if (status == HardwareErrorFlag) /* An hardware related issue had occurred. */
 		errFatal();
@@ -310,4 +325,133 @@ Event errCheckWord(const char *fileName, const char *sourceLine, unsigned long i
 	printLine(sourceLine, line, index); /* Printing the line. */
 
 	return event; /* Errors were found. */
+}
+
+/**
+ * Checks for problems that may occur while handling labels.
+ * Specifically a label that was already declared or a
+ * symbol with a reserved keyword.
+ * Returns an Event enumeration value that can be used
+ * to determine what was the issue (if there was one).
+ */
+Event errCheckSymbol(SymbolTable *symbolTable, const char *fileName, const char *sourceLine, const char *symbol, unsigned long int line) {
+	SymbolTable *checkLabel = searchLabel(symbolTable, symbol); /* To check if the symbol was already declared. */
+	Operator *checkOperator = searchOperatorByString(symbol); /* To check if the symbol is a keyword. */
+	Instructor *checkInstructor = searchInstructorByString(symbol); /* To check if the symbol is a keyword. */
+
+	if (checkLabel == NULL && checkOperator == NULL && checkInstructor == NULL) /* The symbol can only be one of them. */
+		return NEvent; /* There is no issue. */
+	if (checkLabel != NULL && isDeclared(symbolTable) == ERROR)
+		return NEvent; /* This label was used as an operand and was not yet declared. */
+
+	printMsgTitle(fileName, line, 0); /* Printing error message title. */
+	if (checkLabel != NULL)
+		printf("Error: symbol '%s' is already declared\n", symbol); /* The label is already declared. */
+	else if (checkOperator != NULL || checkInstructor != NULL) /* The first parameter can be NULL. */
+		printf("Error: symbol '%s' is a reserved keyword\n", symbol); /* The label is a reserved keyword. */
+	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
+
+	return EEvent; /* The event was an error. */
+}
+
+/**
+ * A formatted error message for cases where a line has
+ * a valid label but nothing else.
+ */
+void errLonelyLabel(const char *fileName, const char *sourceLine, unsigned long int line) {
+	printMsgTitle(fileName, line, 0); /* Printing error message title. */
+	printf("Error: this line has a label but no code\n");
+	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
+}
+
+/**
+ * A formatted error message for cases where a line has
+ * an unknown keyword.
+ */
+void errInvalidKeyword(const char *fileName, const char *sourceLine, const char *word, unsigned long int line) {
+	printMsgTitle(fileName, line, 0); /* Printing error message title. */
+	printf("Error: unknown keyword '%s'\n", word);
+	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
+}
+
+/**
+ * A formatted error message for cases where an operator
+ * receives an invalid set of operands.
+ */
+void errInvalidArgumentSet(const char *fileName, const char *sourceLine, unsigned long int line, char typeOperator, char isSpecialSet) {
+	printMsgTitle(fileName, line, 0); /* Printing error message title. */
+	if (typeOperator == I) { /* Printing message for I operators. */
+		if (isSpecialSet)
+			printf("Error: invalid argument set, should be: register, register, label\n");
+		else
+			printf("Error: invalid argument set, should be: register, immediate, register\n");
+	} else if (typeOperator == J) /* Printing message for J operators. */
+		printf("Error: invalid argument set, should be: label\n");
+	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
+}
+
+/**
+ * A formatted warning message for cases where there is
+ * a label at the beginning of an entry line.
+ */
+void wrnLabeledLine(const char *fileName, const char *sourceLine, unsigned long int line, Expectation dataExpectation) {
+	printMsgTitle(fileName, line, 0); /* Printing error message title. */
+	if (dataExpectation == ExpectLabelEntry) /* Warning message for an entry line. */
+		printf("Warning: label before entry keyword is ignored\n");
+	else if (dataExpectation == ExpectLabelExternal) /* Warning message for an extern line. */
+		printf("Warning: label before extern keyword is ignored\n");
+	printLine(sourceLine, line, 0); /* Printing the line. */
+}
+
+/**
+ * Checks for issues that may be found in the source file
+ * after entry or extern data instructions.
+ * Uses the last two parameters for the error checking
+ * and the rest of the parameters for the error message.
+ * If an issue was found an error message would be
+ * printed.
+ * Returns an Event enumeration value that can be used
+ * to determine what was the issue (if there was one).
+ */
+Event errCheckExpectLabel(const char *fileName, const char *sourceLine, const char *symbol, unsigned long int line, int index, Expectation expecting, Flag status) {
+	Event event = NEvent; /* No errors by default, used for tracking the error type. */
+	if (status == OperatorFlag && expecting == ExpectEnd)
+		return event; /* No errors were found, nothing was printed. */
+
+	if (status == HardwareErrorFlag) /* An hardware related issue had occurred. */
+		errFatal();
+
+	event = EEvent; /* The event is an error. */
+	printMsgTitle(fileName, line, index); /* Printing error message title. */
+	/* Figuring the error message. */
+	if ((status == OperatorFlag && expecting == ExpectWord) || symbol == NULL) /* Checking if there is a label at all. */
+		printf("Error: label is expected\n"); /* The line is empty or there is an unexpected token. */
+	else
+		printf("SyntaxError: label is expected, replace this token\n"); /* Everything else is unexpected. */
+	printLine(sourceLine, line, index); /* Printing the line. */
+
+	return event;
+}
+
+/**
+ * A formatted error message for cases where a label
+ * is both entry and external.
+ */
+void errBothEntryAndExtern(const char *fileName, const char *sourceLine, unsigned long int line, Expectation dataExpectation) {
+	printMsgTitle(fileName, line, 0); /* Printing error message title. */
+	if (dataExpectation == ExpectLabelEntry)
+		printf("Error: label is already defined as external\n");
+	else if (dataExpectation == ExpectLabelExternal)
+		printf("Error: label is already defined as entry\n");
+	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
+}
+
+/**
+ * A formatted error message for cases where an unexpected
+ * character appeared after operands in the source file.
+ */
+void errUnexpectedToken(const char *fileName, const char *sourceLine, unsigned long int line, int index) {
+	printMsgTitle(fileName, line, index); /* Printing error message title. */
+	errUnexpected(); /* Printing message. */
+	printLine(sourceLine, line, index); /* Printing the line without the pointer underneath. */
 }

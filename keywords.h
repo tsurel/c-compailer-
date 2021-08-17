@@ -41,9 +41,19 @@ unsigned char getFunct(Operator *operator);
 unsigned char getOpcode(Operator *operator);
 
 /**
+ * Returns the keyword of the given operator pointer as a string.
+ */
+char *getOperatorKeyword(Operator *operator);
+
+/**
  * Returns the expectation of the given instructor pointer.
  */
 Expectation getExpectation(Instructor *instructor);
+
+/**
+ * Returns the keyword of the given instructor pointer as a string.
+ */
+char *getInstructorKeyword(Instructor *instructor);
 
 /**
  * Searches for the related operator object using its string representation.

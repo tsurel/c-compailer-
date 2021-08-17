@@ -44,6 +44,14 @@ char *getSymbol(SymbolTable *symbolTable) {
 }
 
 /**
+ * Sets the address field of the given label to the
+ * given second parameter.
+ */
+void setAddress(SymbolTable *symbolTable, unsigned long int address) {
+	symbolTable->address = address;
+}
+
+/**
  * Returns a pointer to the next label after the given label.
  * The labels are sorted the way they were added.
  */
@@ -57,7 +65,7 @@ SymbolTable *getNext(SymbolTable *symbolTable) {
  * Returns a pointer to that label if there is one with a
  * matching symbol, null if otherwise.
  */
-SymbolTable *searchLabel(SymbolTable *symbolTable, char *symbol) {
+SymbolTable *searchLabel(SymbolTable *symbolTable, const char *symbol) {
 	/* Looping through the elements in the data structure. */
 	while (symbolTable != NULL) {
 		if (strcmp(symbolTable->symbol, symbol) == 0)
@@ -83,6 +91,24 @@ Code hasAttribute(SymbolTable *symbolTable, LabelAttribute labelAttribute) {
 			/* A matching attribute was found. */
 			return SUCCESS;
 	/* No matching attribute was found. */
+	return ERROR;
+}
+
+/**
+ * Checks if the given label has any attribute, if it does then a
+ * SUCCESS code would be returned and ERROR if otherwise. Used
+ * for checking if a label is declared.
+ */
+Code isDeclared(SymbolTable *symbolTable) {
+	int index;
+
+	/* Searching trough the attributes array of the given label. */
+	for (index = 0; index < ATTRS_PER_LABEL; index++)
+		if (symbolTable->attributes[index] != EmptyLabel)
+			/* A non-empty attribute was found. */
+			return SUCCESS;
+
+	/* The label has no attributes. */
 	return ERROR;
 }
 
@@ -147,6 +173,30 @@ SymbolTable *createSymbol(char *symbol, unsigned address) {
 }
 
 /**
+ * Removes the given label on the second parameter from the given
+ * symbol table on the first parameter.
+ */
+void removeSymbol(SymbolTable **symbolTable, SymbolTable *label) {
+	if (*symbolTable != NULL)
+		return; /* Given symbol table is empty. */
+
+	if (*symbolTable == label) {
+		*symbolTable = (*symbolTable)->next; /* Removing the first node from the chain. */
+			/* Releasing the memory used by it. */
+		free(label->symbol);
+		free(label);
+	}
+	while ((*symbolTable)->next != NULL) {
+		if ((*symbolTable)->next == label) {
+			(*symbolTable)->next = label->next; /* Removing the label from the chain. */
+			/* Releasing the memory used by it. */
+			free(label->symbol);
+			free(label);
+		}
+	}
+}
+
+/**
  * Adds the given attribute code to the given label.
  * Returns a code to determine if the operation was successful or not.
  */
@@ -154,8 +204,8 @@ Code addAttribute(SymbolTable *symbolTable, LabelAttribute labelAttribute) {
 	int index;
 
 	for (index = 0; index < ATTRS_PER_LABEL; index++) {
-		/* Checks if a new attribute code can be inserted. */
-		if (symbolTable->attributes[index] == EmptyLabel) {
+		/* Checks if a new attribute code can be inserted or if that attribute is already there. */
+		if (symbolTable->attributes[index] == EmptyLabel || symbolTable->attributes[index] == labelAttribute) {
 			/* Adding the attribute code, the operation was successful. */
 			symbolTable->attributes[index] = labelAttribute;
 			return SUCCESS;

@@ -77,10 +77,24 @@ unsigned char getOpcode(Operator *operator) {
 }
 
 /**
+ * Returns the keyword of the given operator pointer as a string.
+ */
+char *getOperatorKeyword(Operator *operator) {
+	return operator->keyword;
+}
+
+/**
  * Returns the expectation of the given instructor pointer.
  */
 Expectation getExpectation(Instructor *instructor) {
 	return instructor->expecting;
+}
+
+/**
+ * Returns the keyword of the given instructor pointer as a string.
+ */
+char *getInstructorKeyword(Instructor *instructor) {
+	return instructor->keyword;
 }
 
 /**
@@ -206,7 +220,7 @@ Code initasmKeywords() {
 	}, *j[] = { /* J */
 		"jmp", "la", "call", "stop"
 	}, *instructions[] = { /* Instructors keywords. */
-		".db", ".dh", ".dw", ".asciz", ".entry", ".extern"
+		"db", "dh", "dw", "asciz", "entry", "extern"
 	};
 	Expectation expectations[] = { /* Expectations for every instructor matching by index. */
 		Expect8BitParams, Expect16BitParams, Expect32BitParams, ExpectString, ExpectLabelEntry, ExpectLabelExternal

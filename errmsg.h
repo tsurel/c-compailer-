@@ -2,6 +2,7 @@
 #define ERRMSG_H
 
 #include "asmutils.h"
+#include "symboltable.h"
 
 /**
  * An header file for the errmsg translation unit.
@@ -101,5 +102,62 @@ Event errCheckJ(const char *fileName, const char *sourceLine, unsigned long int 
  * Unfinished
  */
 Event errCheckWord(const char *fileName, const char *sourceLine, unsigned long int line, int index, Expectation expecting, Flag status);
+
+/**
+ * checks for problems that may occur while handling labels.
+ * Specifically a label that was already declared or a
+ * symbol with a reserved keyword.
+ * Returns an Event enumeration value that can be used
+ * to determine what was the issue (if there was one).
+ */
+Event errCheckSymbol(SymbolTable *symbolTable, const char *fileName, const char *sourceLine, const char *symbol, unsigned long int line);
+
+/**
+ * A formatted error message for cases where a line has
+ * a valid label but nothing else.
+ */
+void errLonelyLabel(const char *fileName, const char *sourceLine, unsigned long int line);
+
+/**
+ * A formatted error message for cases where a line has
+ * an unknown keyword.
+ */
+void errInvalidKeyword(const char *fileName, const char *sourceLine, const char *word, unsigned long int line);
+
+/**
+ * A formatted error message for cases where an operator
+ * receives an invalid set of operands.
+ */
+void errInvalidArgumentSet(const char *fileName, const char *sourceLine, unsigned long int line, char typeOperator, char isSpecialSet);
+
+/**
+ * A formatted warning message for cases where there is
+ * a label at the beginning of an entry line.
+ */
+void wrnLabeledLine(const char *fileName, const char *sourceLine, unsigned long int line, Expectation dataExpectation);
+
+/**
+ * Checks for issues that may be found in the source file
+ * after entry or extern data instructions.
+ * Uses the last two parameters for the error checking
+ * and the rest of the parameters for the error message.
+ * If an issue was found an error message would be
+ * printed.
+ * Returns an Event enumeration value that can be used
+ * to determine what was the issue (if there was one).
+ */
+Event errCheckExpectLabel(const char *fileName, const char *sourceLine, const char *symbol, unsigned long int line, int index, Expectation expecting, Flag status);
+
+/**
+ * A formatted error message for cases where a label
+ * is both entry and external.
+ */
+void errBothEntryAndExtern(const char *fileName, const char *sourceLine, unsigned long int line, Expectation dataExpectation);
+
+/**
+ * A formatted error message for cases where an unexpected
+ * character appeared after operands in the source file.
+ */
+void errUnexpectedToken(const char *fileName, const char *sourceLine, unsigned long int line, int index);
 
 #endif

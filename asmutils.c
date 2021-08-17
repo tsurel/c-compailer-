@@ -1112,6 +1112,7 @@ Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *e
 			isLineEmpty = 0; /* The line is not empty. */
 			isSpaceAllowed = 0; /* There cannot be a space after a dot. */
 			*expecting = ExpectAlphanum; /* The next character should be alphanumeric. */
+			*startIndex = index + 1; /* Skipping the dot which should not be included in the returned string during extraction. */
 			endStatus = InstructorFlag; /* The word is an instructor. */
 			continue;
 		}
@@ -1148,8 +1149,11 @@ Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *e
 		endStatus = UnexpectedFlag;
 		break; /* Found an unexpected character. */
 	}
-
-	*endIndex = index - 1; /* Setting the end of the range. */
+	/* Setting the end of the range. */
+	if (endStatus == LabelFlag && c != COLON)
+		*endIndex = index - 2; /* If its a label the range will not include the colon. */
+	else
+		*endIndex = index - 1;
 
 	/* Checking if an issue was found. */
 	if ((endStatus != LabelFlag && endStatus != InstructorFlag && endStatus != OperatorFlag && endStatus != CommentLineFlag) ||

@@ -38,6 +38,12 @@ unsigned long int getAddress(SymbolTable *symbolTable);
 char *getSymbol(SymbolTable *symbolTable);
 
 /**
+ * Sets the address field of the given label to the
+ * given second parameter.
+ */
+void setAddress(SymbolTable *symbolTable, unsigned long int address);
+
+/**
  * Returns a pointer to the next label after the given label.
  * The labels are sorted the way they were added.
  */
@@ -49,7 +55,7 @@ SymbolTable *getNext(SymbolTable *symbolTable);
  * Returns a pointer to that label if there is one with a
  * matching symbol, null if otherwise.
  */
-SymbolTable *searchLabel(SymbolTable *symbolTable, char *symbol);
+SymbolTable *searchLabel(SymbolTable *symbolTable, const char *symbol);
 
 /**
  * Checks if the given label has the given attribute, if it does then
@@ -60,6 +66,13 @@ SymbolTable *searchLabel(SymbolTable *symbolTable, char *symbol);
 Code hasAttribute(SymbolTable *symbolTable, LabelAttribute labelAttribute);
 
 /**
+ * Checks if the given label has any attribute, if it does then a
+ * SUCCESS code would be returned and ERROR if otherwise. Used
+ * for checking if a label is declared.
+ */
+Code isDeclared(SymbolTable *symbolTable);
+
+/**
  * Adds a new label to the given symbol table and assigns it the given
  * symbol and the given address.
  * In case the given symbol table is null the newly created label can
@@ -68,6 +81,12 @@ Code hasAttribute(SymbolTable *symbolTable, LabelAttribute labelAttribute);
  * created successfully, and a null pointer if otherwise.
  */
 SymbolTable *addSymbol(SymbolTable *symbolTable, char *symbol, unsigned address);
+
+/**
+ * Removes the given label on the second parameter from the given
+ * symbol table on the first parameter.
+ */
+void removeSymbol(SymbolTable **symbolTable, SymbolTable *label);
 
 /**
  * Adds the given attribute code to the given label.
