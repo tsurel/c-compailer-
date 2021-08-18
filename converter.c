@@ -18,9 +18,12 @@
 #define OUTPUT_ENT_EXTENTION ".ent" /* Output entries file extension for assembled source files. */
 #define OUTPUT_EXT_EXTENTION ".ext" /* Output externals file extension for assembled source files. */
 
+#define MAX_LABEL_SIZE 31
+
 /**
  * The following functions should not be used outside this translation unit.
  */
+Code checkSymbolTabel(const char *fileName, SymbolTable *symbolTable, Code code);
 Code map(FILE *file, const char *fileName, SymbolTable **symboltable, char *sourceLine, unsigned long int *ic, unsigned long int *dc);
 void increaseDataCounterByData(unsigned long int *dc, const int count, Expectation sizeExpectation);
 void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *sourceLine, const unsigned long int ic, const unsigned long int dc);
@@ -29,8 +32,9 @@ void assembleR(FILE *output, unsigned long int address, Operator *op, char rs, c
 void assembleI(FILE *output, unsigned long int address, Operator *op, char rs, char rt, short immed);
 void assembleJ(FILE *output, unsigned long int address, Operator *op, char isRegister, unsigned long int addressValue);
 void assembleAsciz(char *dataSegment, char *str, unsigned long int *startIndex);
-void assembleData(char *dataSegment, unsigned long int *startIndex, const Expectation expecting, const int count, void *args);
+void assembleData(char *dataSegment, unsigned long int *startIndex, const Expectation expecting, const int count, long int *args);
 void writePlain(FILE *output, char *symbol, unsigned long int address);
+void writeDataSegment(FILE *output ,const unsigned long int dc, char *dataSegment, unsigned long int address);
 /* TODO: Implement the assembler itself using the functions above. */
 
 /* __Temporary test code__ */
@@ -48,7 +52,7 @@ void test(FILE *file) {
 	printf("%s\n", line);
 
 	index = 0;
-	flag = getWord(line, &expecting, &index, &str);
+	flag = getWord(line, &expecting, &index, str);
 
 	printf("%d\t%d\t%d\n", flag, expecting, index);
 	if ((flag == LabelFlag || flag == InstructorFlag || flag == OperatorFlag) && expecting == ExpectEnd) {
@@ -62,7 +66,7 @@ void test(FILE *file) {
 	flag = extractSourceLine(file, line, &index);
 	printf("%s\n%d\n", line, flag);
 	index = 0;
-	flag = getAscizParam(line, &expecting, &index, &str);
+	flag = getAscizParam(line, &expecting, &index, str);
 	printf("%d\t%d\t%d\n", flag, expecting, index);
 	if (str != NULL)
 		printf("%s\n", str);
@@ -71,16 +75,40 @@ void test(FILE *file) {
 }
 
 void assemble(FILE *sourceFile, const char *fileName) {
-	unsigned long int ic; /* Operator line counter (instruction counter). */
-	unsigned long int dc; /* Data instruction counter (data counter). */
-	/*Code code;*/
+	unsigned long int ic = 100; /* Operator line counter (instruction counter). */
+	unsigned long int dc = 0; /* Data instruction counter (data counter). */
+	Code code;
 	SymbolTable *symbolTable;
 	char *sourceLine = malloc(SOURCE_LINE_LENGTH + 1);
 
-	map(sourceFile, fileName, &symbolTable, sourceLine, &ic, &dc);
+	code = map(sourceFile, fileName, &symbolTable, sourceLine, &ic, &dc);
 
+	code = checkSymbolTabel(fileName, getNext(symbolTable), code);
+
+	if (code == SUCCESS)
+		convert(sourceFile, fileName, symbolTable, sourceLine, ic, dc);
+
+	/* Freeing the memory. */
 	free(sourceLine);
-	free(symbolTable);
+	freeSymbolTable(symbolTable);
+}
+
+/**
+ * Scans the given symbol table for used labels that
+ * are undeclared. If such label was found an error
+ * message would be printed for every one and an error
+ * code would be returned. If no such label was found
+ * a success code would be returned instead.
+ */
+Code checkSymbolTabel(const char *fileName, SymbolTable *symbolTable, Code code) {
+	while (symbolTable != NULL) {
+		if (isDeclared(symbolTable) == ERROR && hasAttribute(symbolTable, ExternLabel) == ERROR) { /* Checking the label. */
+			errUndeclaredLabel(fileName, symbolTable); /* Printing an error message, the label is not fine. */
+			code = ERROR; /* Setting the return value to error. */
+		}
+		symbolTable = getNext(symbolTable); /* Checking the next label. */
+	}
+	return code;
 }
 
 /* Unfinished. */
@@ -96,12 +124,14 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 	char isLabelLine; /* To track if there was a label at the beginning of the line. */
 	int index; /* An index to track the position on the line. */
 	unsigned long int lineNum = 0; /* To track the line number. */
-	char *word = NULL; /* A variable to store the labels\Instructors\Operators returned from getWord. */
-	char *symbol = NULL; /* A variable to store the label operand of I\J operators. May be used for string holding as well. */
-	void *args = NULL; /* To used the "getDataParam" function from asmutils. */
+	char *word; /* A variable to store the labels\Instructors\Operators returned from getWord. */
+	char *symbol; /* A variable to store the label operand of I\J operators. */
+	char *str; /* A variable to store the string returned from "getAscizParam" function from asmutils. */
+	long int *args; /* To use the "getDataParam" function from asmutils. */
 	char rs, rt, rd; /* Variables to use some of the "get" functions from asmutils. */
 	short immed = 0; /* A variable to use the "getIParam" function from asmutils. */
 	int count; /* Used for counting arguments for db and dh and dw data instructors. */
+	char isLabeledArgSet = 0; /* To track I\J operators required argument sets. */
 	Operator *operator; /* To hold operators. */
 	Instructor *instructor; /* To hold instructors. */
 	SymbolTable *front; /* The symbol table. */
@@ -113,6 +143,12 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 
 	if ((edit = front = addSymbol(NULL, "", 0)) == NULL) /* Initializing the symbol table with an impossible label. */
 		errFatal(); /* Memory allocation failed, cannot continue the program. */
+
+	if ((word = malloc(MAX_LABEL_SIZE + 1)) == NULL || /* +1 for a terminating character. */
+		(symbol = malloc(MAX_LABEL_SIZE + 1)) == NULL || /* +1 for a terminating character. */
+		(str = malloc(SOURCE_LINE_LENGTH)) == NULL || /* An asciz string cannot be longer than that. */
+		(args = calloc(sizeof(long int) ,(SOURCE_LINE_LENGTH / 2) + 1)) == NULL) /* A line of db or dh or dw will never have more arguments than that. */
+	errFatal(); /* Cannot continue without memory. */
 
 	while (!shouldStop) {
 		isLabelLine = 0; /* The line is not labeled. */
@@ -128,21 +164,17 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 		}
 		index = 0; /* Setting the index to the beginning of the line. */
 
-		if ((status = getWord(sourceLine, &expecting, &index, &word)) == LabelFlag) { /* If the returned flag is LabelFlag then there are no errors to check for. */
+		if ((status = getWord(sourceLine, &expecting, &index, word)) == LabelFlag) { /* If the returned flag is LabelFlag then there are no errors to check for. */
 			if (errCheckSymbol(front, fileName, sourceLine, word, lineNum) == EEvent) { /* Checking the symbol. */
-				free(word); /* Avoiding memory leak. */
-				word = NULL; /* Avoiding potential problems. */
+				code = ERROR; /* No output should be created for this source file. */
 				continue; /* The line is corrupted. */
 			}
-			if ((edit = searchLabel(front, word)) == NULL) {
+			if ((edit = searchLabel(front, word)) == NULL)
 				if ((edit = addSymbol(front, word, 0)) == NULL) /* Creating the next label if it is not in the symbol table. */
 					errFatal(); /* Memory allocation for this label had failed, cannot continue the program. */
-			} else
-				free(word); /* Avoiding memory leak. */
 			isLabelLine = 1; /* The line is labeled. */
-			word = NULL; /* Avoiding collisions with the symbol of the label. */
 
-			status = getWord(sourceLine, &expecting, &index, &word); /* Extracting the next part of the source line. */
+			status = getWord(sourceLine, &expecting, &index, word); /* Extracting the next part of the source line. */
 		} else if (status == CommentLineFlag)
 			continue; /* Skipping a comment line. */
 		if (status == OperatorFlag && expecting == ExpectWord) { /* This combination indicates that the line is empty. */
@@ -150,7 +182,7 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 				errLonelyLabel(fileName, sourceLine, lineNum); /* A label cannot be alone in a line. */
 				code = ERROR; /* No output should be created for this source file. */
 			}
-			continue; /* The line is corrupted. */
+			continue; /* The line is corrupted or empty. */
 		}
 		if ((event = errCheckWord(fileName, sourceLine, lineNum, index, expecting, status)) == EEvent) { /* Checking and handling source file issues. */
 			code = ERROR; /* No output should be created for this source file. */
@@ -163,79 +195,66 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 				addAttribute(edit, CodeLabel); /* Previous checks prevent this from failing. */
 				setAddress(edit, *ic); /* Stetting the address of this label. */
 			}
-			(*ic) += codeLineSize;
 			operator = searchOperatorByString(word); /* Getting the operator. */
-			free(word); /* Avoiding memory leak. */
-			word = NULL; /* Avoiding potential problems. */
 			if (operator == NULL) {
-				errInvalidKeyword(fileName, sourceLine, getOperatorKeyword(operator), lineNum); /* The operator is invalid. */
+				errInvalidKeyword(fileName, sourceLine, word, lineNum); /* The operator is invalid. */
+				code = ERROR; /* No output should be created for this source file. */
 				continue; /* The line is corrupted. */
 			}
+			(*ic) += codeLineSize;
 			if (getType(operator) == R) { /* Handling R type operators. */
 				if (getOpcode(operator))
 					/* Extracting 2 operands. */
-					getRParam(sourceLine, &expecting, R2, &index, &rs, &rt, &rd);
+					status = getRParam(sourceLine, &expecting, R2, &index, &rs, &rt, &rd);
 				else
 					/* Extracting 3 operands. */
-					getRParam(sourceLine, &expecting, R3, &index, &rs, &rt, &rd);
+					status = getRParam(sourceLine, &expecting, R3, &index, &rs, &rt, &rd);
 				if (errCheckR(fileName, sourceLine, lineNum, index, expecting, status) == EEvent) { /* Checking and handling source file issues. */
 					code = ERROR; /* No output should be created for this source file. */
 					continue; /* The line is corrupted. */
 				}
 			} else if (getType(operator) == I) { /* Handling I type operators. */
 				/* Extracting the data from the line as operand set for I operators. */
-				status = getIParam(sourceLine, &expecting, &index, &rs, &rt, &immed, &symbol);
+				status = getIParam(sourceLine, &expecting, &index, &rs, &rt, &immed, &isLabeledArgSet, symbol);
 				if (errCheckI(fileName, sourceLine, lineNum, index, expecting, status) == EEvent) { /* Checking and handling source file issues. */
 					code = ERROR;
 					continue;
 				}
-				if (symbol != NULL) { /* One of the operands is a label. */
-					if (getOpcode(operator) < beginLabelArgSetI || getOpcode(operator) > endLabelArgSetI) {
-						errInvalidArgumentSet(fileName, sourceLine, lineNum, I, 0);
+				if (isLabeledArgSet) { /* One of the operands is a label. */
+					if (getOpcode(operator) < beginLabelArgSetI || getOpcode(operator) > endLabelArgSetI) { /* Checking if this is a valid argument set. */
+						errInvalidArgumentSet(fileName, sourceLine, lineNum, I, 0); /* The argument set is invalid. */
 						code = ERROR; /* No output should be created for this source file. */
-						free(symbol); /* Avoiding memory leaks. */
-						symbol = NULL; /* Avoiding problems for this "if" statement. */
 						continue; /* The line is corrupted. */
 					}
 					if (errCheckSymbol(NULL, fileName, sourceLine, symbol, lineNum) == EEvent) { /* Checking if the symbol is a reserved keyword. */
 						code = ERROR; /* No output should be created for this source file. */
-						free(symbol); /* Avoiding memory leaks. */
-						symbol = NULL; /* Avoiding problems for this "if" statement. */
 						continue; /* The line is corrupted. */
 					}
-					if (searchLabel(front, symbol) == NULL) { /* Extracting the label. */
+					if (searchLabel(front, symbol) == NULL) /* Extracting the label. */
 						if (addSymbol(front, symbol, lineNum) == NULL) /* Line number as address for error messaging purposes. */
 							errFatal(); /* Memory allocation for this label had failed, cannot continue the program. */
-					} else
-						free(symbol); /* Freeing the symbol if the label already exists. */
-					symbol = NULL; /* Avoiding problems for this "if" statement. */
-				} else {
-					if (getOpcode(operator) >= beginLabelArgSetI && getOpcode(operator) <= endLabelArgSetI) {
-						errInvalidArgumentSet(fileName, sourceLine, lineNum, I, 1);
+				} else { /* There is no label, the middle operand is an immediate value. */
+					if (getOpcode(operator) >= beginLabelArgSetI && getOpcode(operator) <= endLabelArgSetI) { /* Checking if this is a valid argument set. */
+						errInvalidArgumentSet(fileName, sourceLine, lineNum, I, 1); /* The argument set is invalid. */
 						code = ERROR; /* No output should be created for this source file. */
 						continue; /* The line is corrupted. */
 					}
 				}
 			} else if (strcmp(getOperatorKeyword(operator), stopOperator) != 0) { /* The remaining operators must be of type J. */
 				/* Extracting the data from the line. */
-				status = getJParam(sourceLine, &expecting, &index, &rs, &symbol);
+				status = getJParam(sourceLine, &expecting, &index, &rs, &isLabeledArgSet, symbol);
 				if (errCheckJ(fileName, sourceLine, lineNum, index, expecting, status) == EEvent) { /* Checking and handling source file issues. */
 					code = ERROR; /* No output should be created for this source file. */
 					continue; /* The line is corrupted. */
 				}
-				if (symbol != NULL) { /* The operand is a label. */
+				if (isLabeledArgSet) { /* The operand is a label. */
 					if (errCheckSymbol(NULL, fileName, sourceLine, symbol, lineNum) == EEvent) { /* Checking if the symbol is a reserved keyword. */
 						code = ERROR; /* No output should be created for this source file. */
-						free(symbol); /* Avoiding memory leaks. */
-						symbol = NULL; /* Avoiding problems for this "if" statement. */
 						continue; /* The line is corrupted. */
 					}
-					if (searchLabel(front, symbol) == NULL) { /* Extracting the label. */
+					if (searchLabel(front, symbol) == NULL) /* Extracting the label. */
 						if (addSymbol(front, symbol, lineNum) == NULL) /* Line number as address for error messaging purposes. */
 							errFatal(); /* Memory allocation for this label had failed, cannot continue the program. */
-					} else
-						free(symbol); /* Freeing the symbol if the label already exists. */
-					symbol = NULL; /* Avoiding problems for this "if" statement. */
 				} else { /* The operand is a register */
 					if (strcmp(getOperatorKeyword(operator), jmpOperator) != 0) { /* the "jmp" operator is the only one that can take a register as operand. */
 						errInvalidArgumentSet(fileName, sourceLine, lineNum, J, 0);
@@ -250,101 +269,98 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 				setAddress(edit, *dc); /* Stetting the address of this label. */
 			}
 			instructor = searchInstructorByString(word); /* Getting the instructor. */
-			dataExpectation = getExpectation(instructor); /* Saving the expectation. */
-			free(word); /* Avoiding memory leak. */
-			word = NULL; /* Avoiding potential problems. */
 			if (instructor == NULL) {
-				errInvalidKeyword(fileName, sourceLine, getInstructorKeyword(instructor), lineNum); /* The instructor is invalid. */
+				errInvalidKeyword(fileName, sourceLine, word, lineNum); /* The instructor is invalid. */
 				continue; /* The line is corrupted. */
 			}
+			dataExpectation = getExpectation(instructor); /* Saving the expectation. */
 			if (dataExpectation == ExpectString) { /* This is an asciz data instructor. */
-				status = getAscizParam(sourceLine, &expecting, &index, &symbol);
+				status = getAscizParam(sourceLine, &expecting, &index, str);
 				if (errCheckAsciz(fileName, sourceLine, lineNum, index, expecting, status) == EEvent) {
 					code = ERROR; /* No output should be created for this source file. */
 					continue; /* The line is corrupted. */
 				}
 				/* Adding the size of the string to the data counter. */
-				(*dc) += strlen(symbol) + 1; /* +1 for a terminating character. */
-				free(symbol); /* Avoiding memory leak. */
-				symbol = NULL; /* Avoiding potential problems. */
-			} else if (dataExpectation == ExpectLabelEntry) {
+				(*dc) += strlen(str) + 1; /* +1 for a terminating character. */
+			} else if (dataExpectation == ExpectLabelEntry) { /* This is an entry instructor. */
 				if (isLabelLine) { /* Unnecessary label at the beginning of the line. */
 					wrnLabeledLine(fileName, sourceLine, lineNum, dataExpectation); /* Printing a warning message. */
-					removeSymbol(&front, edit); /* This assembler will ignore this label. */
+					removeSymbol(&front, edit); /* The assembler will ignore this label. */
 				}
 				/* Extracting the label from the line. */
-				status = getWord(sourceLine, &expecting, &index, &symbol);
+				status = getWord(sourceLine, &expecting, &index, symbol);
 				/* Checking and handling source file issues. */
 				if (errCheckExpectLabel(fileName, sourceLine, symbol, lineNum, index, expecting, status) == EEvent ||
 					errCheckSymbol(NULL, fileName, sourceLine, symbol, lineNum) == EEvent) { /* Checking the symbol. */
-					if (symbol != NULL)
-						free(symbol); /* After calling getWord other non-label tokens may be contained in that string */
-					symbol = NULL; /* Avoiding potential problems. */
 					code = ERROR; /* No output should be created for this source file. */
 					continue; /* The line is corrupted. */
 				}
 				if ((edit = searchLabel(front, symbol)) == NULL)
-					edit = addSymbol(front, symbol, 0); /* Creating the next label if it is not in the symbol table. */
-				else
-					free(symbol);
-				if (edit == NULL)
-					errFatal(); /* Memory allocation for this label had failed, cannot continue the program. */
-				symbol = NULL; /* Avoiding potential problems. */
-				if (hasAttribute(edit, EntryLabel) == SUCCESS) { /* A label cannot be both entry and external. */
+					if ((edit = addSymbol(front, symbol, 0)) == NULL) /* Creating the next label if it is not in the symbol table. */
+						errFatal(); /* Memory allocation for this label had failed, cannot continue the program. */
+				if (hasAttribute(edit, ExternLabel) == SUCCESS) { /* A label cannot be both entry and external. */
 					errBothEntryAndExtern(fileName, sourceLine, lineNum, dataExpectation);
 					code = ERROR; /* No output should be created for this source file. */
 					continue; /* The line is corrupted. */
 				}
 				addAttribute(edit, EntryLabel); /* This is an entry label, previous checks prevent this from failing */
-			} else if (dataExpectation == ExpectLabelExternal) {
+				if (isDeclared(edit) == ERROR)
+					setAddress(edit, lineNum); /* If the label is not declared it should be ready for an error message. */
+			} else if (dataExpectation == ExpectLabelExternal) { /* This is an extern instructor. */
 				if (isLabelLine) { /* Unnecessary label at the beginning of the line. */
 					wrnLabeledLine(fileName, sourceLine, lineNum, dataExpectation); /* Printing a warning message. */
-					removeSymbol(&front, edit); /* This assembler will ignore this label. */
+					removeSymbol(&front, edit); /* The assembler will ignore this label. */
 				}
 				/* Extracting the label from the line. */
-				status = getWord(sourceLine, &expecting, &index, &symbol);
+				status = getWord(sourceLine, &expecting, &index, symbol);
 				/* Checking and handling source file issues. */
 				if (errCheckExpectLabel(fileName, sourceLine, symbol, lineNum, index, expecting, status) == EEvent ||
 					errCheckSymbol(NULL, fileName, sourceLine, symbol, lineNum) == EEvent) { /* Checking the symbol. */
-					if (symbol != NULL)
-						free(symbol); /* After calling getWord other non-label tokens may be contained in that string */
-					symbol = NULL; /* Avoiding potential problems. */
 					code = ERROR; /* No output should be created for this source file. */
 					continue; /* The line is corrupted. */
 				}
-				if ((edit = searchLabel(front, symbol)) == NULL) {
+				if ((edit = searchLabel(front, symbol)) == NULL)
 					if ((edit = addSymbol(front, symbol, 0)) == NULL) /* Creating the next label if it is not in the symbol table. */
 						errFatal(); /* Memory allocation for this label had failed, cannot continue the program. */
-				} else
-					free(symbol);
-				symbol = NULL; /* Avoiding potential problems. */
 				if (hasAttribute(edit, EntryLabel) == SUCCESS) { /* A label cannot be both entry and external. */
 					errBothEntryAndExtern(fileName, sourceLine, lineNum, dataExpectation);
 					code = ERROR; /* No output should be created for this source file. */
 					continue; /* The line is corrupted. */
 				}
+				if (isDeclared(edit) == SUCCESS) { /* An external label cannot be declared locally. */
+					errDeclaredExtern(fileName, sourceLine, getSymbol(edit), lineNum); /* Printing relevant error message. */
+					code = ERROR; /* No output should be created for this source file. */
+					continue; /* The line is corrupted. */
+				}
 				addAttribute(edit, ExternLabel); /* This is an external label, previous checks prevent this from failing */
-			} else if (expecting == Expect8BitParams || expecting == Expect16BitParams || expecting == Expect32BitParams) {
-				status = getDataParam(sourceLine, &expecting, &index, &count, &args); /* Extracting the arguments. */
+				setAddress(edit, 0); /* External labels have no address. */
+			} else if (dataExpectation == Expect8BitParams || dataExpectation == Expect16BitParams || dataExpectation == Expect32BitParams) {
+				expecting = dataExpectation; /* The "getDataParam" function requires the expectation. */
+				status = getDataParam(sourceLine, &expecting, &index, &count, args); /* Extracting the arguments. */
 				if (errCheckData(fileName, sourceLine, lineNum, index, expecting, status) == EEvent) {
 					code = ERROR; /* No output should be created for this source file. */
 					continue; /* The line is corrupted. */
 				}
-				free(args); /* Avoiding memory leak. */
-				args = NULL; /* Avoiding potential problems. */
-				increaseDataCounterByData(dc, count, dataExpectation);
+				increaseDataCounterByData(dc, count, dataExpectation); /* Incrementing the data counter based on the instruction and the number of arguments. */
 			}
 		}
-		while (sourceLine[index] != nullTermination) /* Checking for unexpected characters that might have bean missed by some "get" functions from asmutils. */
+		while (sourceLine[index] != nullTermination) {/* Checking for unexpected characters that might have bean missed by some "get" functions from asmutils. */
 			if (sourceLine[index] != space && sourceLine[index] != tab) {
 				errUnexpectedToken(fileName, sourceLine, lineNum, index);
+				code = ERROR; /* No output should be created for this source file. */
 				break; /* One message like this per line is enough. */
 			}
+		index++; /* Incrementing the index. */
+		}
 	}
 
-	/* The first label in the symbol table is trash. */
-	*symbolTable = getNext(front); /* Returning the symbol table trough a parameter. */
-	free(front); /* The symbol on the first label is on the stack, just freeing the label. */
+	*symbolTable = front; /* Returning the symbol table trough a parameter. */
+
+	/* Avoiding memory leak. */
+	free(word);
+	free(symbol);
+	free(str);
+	free(args);
 
 	return code;
 }
@@ -373,16 +389,18 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 	int count; /* Used for counting arguments for db, dh, and dw keywords. */
 	unsigned long int address = 100; /* To track the memory address of the assembled operators in the output file. */
 	char shouldStop = 0; /* To track when the loop should stop meaning, the source file has ended */
-	char *word = NULL; /* A variable to store the labels\Instructors\Operators returned from getWord. */
-	char *symbol = NULL; /* A variable to store the label operand of I\J operators. May be used for string holding as well. */
+	char isLabeledArgSet = 0; /* To use the "getIParam" and "getJParam" functions from asmutils. */
+	char *word; /* A variable to store the labels\Instructors\Operators returned from getWord. */
+	char *symbol; /* A variable to store the label operand of I\J operators. */
+	char *str; /* A variable to store and access asciz strings. */
+	long int *args; /* To store and access db\dh\dw arguments. */
 	char rs, rt, rd; /* Variables to store register addresses. */
 	short immed; /* A variable to store the immediate value for I operators. */
 	char *dataSegment; /* Points to the array that stores all the assembled data instructors parameters. */
-	void *args = NULL; /* To store and access db\dh\dw arguments. */
 	unsigned long int dataSegmentIndex = 0; /* Index variable for the data segment array. */
-	FILE *outputObj;
-	FILE *outputEnt = NULL, *outputExt = NULL;
-	char *obFileName, *entFileName, *extFileName;
+	FILE *outputObj; /* The main output file. */
+	FILE *outputEnt = NULL, *outputExt = NULL; /* Entries and externals output files. */
+	char *obFileName, *entFileName, *extFileName; /* pointers to the names of the output files. */
 	SymbolTable *label; /* A variable for label handling. */
 	Operator *operator; /* To hold operators. */
 	Instructor *instructor; /* To hold instructors. */
@@ -400,6 +418,12 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 		errFatal(); /* Cannot continue without memory. */
 	}
 
+	if ((word = malloc(MAX_LABEL_SIZE + 1)) == NULL || /* +1 for a terminating character. */
+		(symbol = malloc(MAX_LABEL_SIZE + 1)) == NULL || /* +1 for a terminating character. */
+		(str = malloc(SOURCE_LINE_LENGTH)) == NULL || /* An asciz string cannot be longer than that. */
+		(args = calloc(sizeof(long int) ,(SOURCE_LINE_LENGTH / 2) + 1)) == NULL) /* A line of db or dh or dw will never have more arguments than that. */
+	errFatal(); /* Cannot continue without memory. */
+
 	fprintf(outputObj, "     %ld %ld\n", ic, dc);
 
 	while (!shouldStop) {
@@ -409,10 +433,8 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 		if ((status = extractSourceLine(file, sourceLine, &lengthCheck)) == EndFileFlag)
 			shouldStop = 1; /* This is the last line in the source file. */
 
-		if ((status = getWord(sourceLine, &expecting, &index, &word)) == LabelFlag) { /* Extracting the beginning of the line. */
-			free(word); /* Avoiding memory leak. */
-			word = NULL; /* Just in case. */
-			status = getWord(sourceLine, &expecting, &index, &word); /* Extracting again if it was a label. */
+		if ((status = getWord(sourceLine, &expecting, &index, word)) == LabelFlag) { /* Extracting the beginning of the line. */
+			status = getWord(sourceLine, &expecting, &index, word); /* Extracting again if it was a label. */
 		} else if (status == CommentLineFlag || (status == OperatorFlag && expecting == ExpectWord))
 			continue; /* Skipping a comment line or an empty line. */
 
@@ -428,29 +450,19 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 				assembleR(outputObj, address, operator, rs, rt, rd); /* Assembling the line. */
 			} else if (getType(operator) == I) { /* Handling I type operators. */
 				/* Extracting the data from the line as operand set for I operators. */
-				status = getIParam(sourceLine, &expecting, &index, &rs, &rt, &immed, &symbol);
-				if (status == HardwareErrorFlag) {
-					errFatal(); /* Memory allocation had failed, cannot continue the program. */
-				}
-				if (symbol != NULL) { /* If one of the operands is a label. */
+				status = getIParam(sourceLine, &expecting, &index, &rs, &rt, &immed, &isLabeledArgSet, symbol);
+				if (isLabeledArgSet) { /* If one of the operands is a label. */
 					label = searchLabel(symboltable, symbol); /* Extracting the label. */
 					immed = getAddress(label) - address; /* Calculating the difference into the immediate field. */
-					free(symbol); /* Freeing the symbol. */
-					symbol = NULL; /* Avoiding problems for this if statement. */
 				} /* If there was no label no special treatment is required. */
 				assembleI(outputObj, address, operator, rs, rt, immed); /* Assembling the line. */
 			} else if (strcmp(word, stopOperator) == 0) { /* Special case, the "stop" keyword. */
 				assembleJ(outputObj, address, operator, 0, 0); /* The "stop" keyword takes no operands. */
 			} else { /* The remaining operators must be of type J. */
 				/* Extracting the data from the line. */
-				status = getJParam(sourceLine, &expecting, &index, &rs, &symbol);
-				if (status == HardwareErrorFlag) {
-					errFatal(); /* Memory allocation had failed, cannot continue the program. */
-				}
-				if (symbol != NULL) { /* If the operand is a label. */
+				status = getJParam(sourceLine, &expecting, &index, &rs, &isLabeledArgSet, symbol);
+				if (isLabeledArgSet) { /* If the operand is a label. */
 					label = searchLabel(symboltable, symbol); /* Extracting the label from the symbol table. */
-					free(symbol); /* The symbol is no longer necessary. */
-					symbol = NULL; /* Avoiding problems for this if statement. */
 					if (hasAttribute(label, EntryLabel) == SUCCESS) { /* This may be an entry label. */
 						if (outputEnt == NULL) { /* If that file was not created yet then it would be created. */
 							outputEnt = fopen(entFileName, "w+"); /* Creating\recreating the output file. */
@@ -475,41 +487,28 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 			instructor = searchInstructorByString(word); /* Getting the instructor. */
 			expecting = getExpectation(instructor); /* To know what should be the next part of the line. */
 			if (expecting == ExpectString) {
-				status = getAscizParam(sourceLine, &expecting, &index, &symbol); /* Extracting the string. */
-				if (status == HardwareErrorFlag) {
-					errFatal(); /* Memory allocation had failed, cannot continue the program. */
-				}
-				assembleAsciz(dataSegment, symbol, &dataSegmentIndex); /* Copying the string to the data segment, it will be added to the output file at the end. */
-				free(symbol); /* Avoiding memory leaks. */
-				symbol = NULL; /* Protecting other if statements. */
+				status = getAscizParam(sourceLine, &expecting, &index, str); /* Extracting the string. */
+				assembleAsciz(dataSegment, str, &dataSegmentIndex); /* Copying the string to the data segment, it will be added to the output file at the end. */
 			} else if (expecting == Expect8BitParams || expecting == Expect16BitParams || expecting == Expect32BitParams) { /* The instructor is db, dh, or dw. */
 				count = 0; /* Initializing the argument counting variable. */
 				sizeExpectation = expecting; /* Keeping that expectation for the assembling part since getDataParam will modify it. */
-				getDataParam(sourceLine, &expecting, &index, &count, &args); /* Extracting the arguments. */
+				getDataParam(sourceLine, &expecting, &index, &count, args); /* Extracting the arguments. */
 				assembleData(dataSegment, &dataSegmentIndex, sizeExpectation, count, args); /* Copying the argument to the data segment. */
-				free(args); /* Avoiding memory leak. */
-				args = NULL; /* Good practice. */
 			}
 		}
-		free(word); /* freeing the word. */
 	}
 
-	dataSegmentIndex = 0; /* Starting from the beginning of the code segment. */
-	/* Copying all the data segment into the output file. */
-	while (dataSegmentIndex < dc) {
-		/* Writing every character in hexadecimal format. */
-		fprintf(outputObj, "%02X", dataSegment[dataSegmentIndex++]);
-		address++; /* Incrementing the total address. */
-		if (address % assembledLineSize == 0) 
-			/* Every 4 bytes, printing the address in decimal format. */
-			fprintf(outputObj, "\n%04ld ", address);
-	}
+	writeDataSegment(outputObj, dc, dataSegment, address); /* Writing the data segment to the output file. */
 
 	/* Freeing memory. */
 	free(obFileName);
 	free(entFileName);
 	free(extFileName);
 	free(dataSegment);
+	free(word);
+	free(symbol);
+	free(str);
+	free(args);
 	/* Closing used file streams. */
 	fclose(outputObj);
 	if (outputEnt != NULL)
@@ -709,12 +708,12 @@ void assembleAsciz(char *dataSegment, char *str, unsigned long int *startIndex) 
  * argument array into the given data segment, the size
  * of each argument is determined by the third parameter.
  */
-void assembleData(char *dataSegment, unsigned long int *startIndex, const Expectation expecting, const int count, void *args) {
+void assembleData(char *dataSegment, unsigned long int *startIndex, const Expectation expecting, const int count, long int *args) {
 	const char byteSize = 8; /* Used for shifting every argument. */
 	int argsIndex = 0; /* To track the given arguments array. */
 	long int argument; /* To hold every argument. */
 	while (argsIndex < count) {
-		argument = ((long int*)args)[argsIndex]; /* Extracting the argument as a bit field. */
+		argument = args[argsIndex]; /* Extracting the argument as a bit field. */
 
 		dataSegment[(*startIndex)++] = argument; /* Extracting the first byte. */
 		if (expecting == Expect16BitParams) { /* If the argument is larger one more byte would be extracted. */
@@ -735,4 +734,24 @@ void assembleData(char *dataSegment, unsigned long int *startIndex, const Expect
  */
 void writePlain(FILE *output, char *symbol, unsigned long int address) {
 	fprintf(output, "%s %04ld\n", symbol, address);
+}
+
+
+
+/**
+ * Writes the given data segment to the given output stream.
+ */
+void writeDataSegment(FILE *output ,const unsigned long int dc, char *dataSegment, unsigned long int address) {
+	const char assembledLineSize = 4; /* The size for the bit field in the output file. */
+	int index = 0; /* Starting from the beginning of the data segment. */
+
+	/* Copying all the data segment into the output file. */
+	while (index < dc) {
+		/* Writing every character in hexadecimal format. */
+		fprintf(output, "%02X", dataSegment[index++]);
+		address++; /* Incrementing the total address. */
+		if (address % assembledLineSize == 0) 
+			/* Every 4 bytes, printing the address in decimal format. */
+			fprintf(output, "\n%04ld ", address);
+	}
 }

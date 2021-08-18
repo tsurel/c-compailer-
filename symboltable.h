@@ -66,7 +66,7 @@ SymbolTable *searchLabel(SymbolTable *symbolTable, const char *symbol);
 Code hasAttribute(SymbolTable *symbolTable, LabelAttribute labelAttribute);
 
 /**
- * Checks if the given label has any attribute, if it does then a
+ * Checks if the given label has code or data attribute, if it does then a
  * SUCCESS code would be returned and ERROR if otherwise. Used
  * for checking if a label is declared.
  */
@@ -80,7 +80,7 @@ Code isDeclared(SymbolTable *symbolTable);
  * Returns a pointer to the newly created label if the label was
  * created successfully, and a null pointer if otherwise.
  */
-SymbolTable *addSymbol(SymbolTable *symbolTable, char *symbol, unsigned address);
+SymbolTable *addSymbol(SymbolTable *symbolTable, char *symbol, unsigned long int address);
 
 /**
  * Removes the given label on the second parameter from the given

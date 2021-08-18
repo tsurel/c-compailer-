@@ -35,13 +35,19 @@ void printMsgTitle(const char *fileName, unsigned long int line, int index) {
  */
 void printLine(const char *sourceLine, unsigned long int line, int index) {
 	int i; /* For the loop that places the pointer. */
-	printf("%08ld |%s\n", line, sourceLine); /* Printing the line. */
+	printf("%ld |%s\n", line, sourceLine); /* Printing the line. */
 
 	if (index < 0)
 		return; /* Only the line should be printed. */
 
+	while (line != 0) {
+		printf(" "); /* Moving the pointer underneath to after the line number. */
+		line /= 10;
+	}
+	printf("  "); /* Moving the pointer underneath to after the space and pipe sign. */
+
 	/* Printing the pointer bellow the position of the issue. */
-	for (i = 1; i < index && i < SOURCE_LINE_LENGTH; i++)
+	for (i = 0; i < index && i < SOURCE_LINE_LENGTH; i++)
 		printf(" ");
 	printf("^\n");
 }
@@ -56,6 +62,10 @@ void printLine(const char *sourceLine, unsigned long int line, int index) {
  */
 Event errCheckLine(const char *fileName, const char *sourceLine, unsigned long int line, int length, Flag status) {
 	Event event = NEvent; /* No errors by default, used for tracking the error type. */
+
+	if (status != WarningLineLengthFlag && status != ErrorLineLengthFlag)
+		return event;
+
 	printMsgTitle(fileName, line, SOURCE_LINE_LENGTH); /* Printing error message title. */
 
 	/* Figuring the error message. */
@@ -123,6 +133,7 @@ Event errCheckData(const char *fileName, const char *sourceLine, unsigned long i
 	} else if (status == SizeOverflowFlag) { /* One (or more) of the arguments was too large for the specified data instruction. */
 		printf("Warning: argument size is too large, only least significant bytes were scanned\n");
 		event = WEvent; /* The event is a warning. */
+		index = -1; /* To print the line without the pointer underneath. */
 	} else { /* StraySignFlag, UnexpectedFlag, StrayDigitFlag. The line has unexpected tokens that should be deleted. */
 		errUnexpected();
 	}
@@ -198,6 +209,7 @@ Event errCheckR(const char *fileName, const char *sourceLine, unsigned long int 
 		printf("Error: a comment must have a dedicated line\n");
 	} else if (status == InvalidRegisterFlag) { /* Found a defined register with invalid address. */
 		printf("Error: invalid register address, valid addresses are 0 - 31\n");
+		index = -1; /* To print the line without the pointer underneath. */
 	} else { /* StrayDollarSignFlag, StrayDigitFlag, StrayCommaFlag, UnexpectedFlag flags. Tokens should not be there. */
 		errUnexpected();
 	}
@@ -247,6 +259,7 @@ Event errCheckI(const char *fileName, const char *sourceLine, unsigned long int 
 		printf("Error: The specified symbol is illegal\n");
 	} else if (status == InvalidRegisterFlag) { /* Found a defined register with invalid address. */
 		printf("Error: invalid register address, valid addresses are 0 - 31\n");
+		index = -1; /* To print the line without the pointer underneath. */
 	} else { /* StrayDollarSignFlag, StraySignFlag, StrayDigitFlag, StrayCommaFlag, UnexpectedFlag flags. Tokens should not be there. */
 		errUnexpected();
 	}
@@ -301,7 +314,14 @@ Event errCheckJ(const char *fileName, const char *sourceLine, unsigned long int 
 }
 
 /**
- * Unfinished
+ * Checks for issues that may be found in the source file
+ * after calling the getWord function.
+ * Uses the last two parameters for the error checking
+ * and the rest of the parameters for the error message.
+ * If an issue was found an error message would be
+ * printed.
+ * Returns an Event enumeration value that can be used
+ * to determine what was the issue (if there was one).
  */
 Event errCheckWord(const char *fileName, const char *sourceLine, unsigned long int line, int index, Expectation expecting, Flag status) {
 	Event event = NEvent; /* No errors by default, used for tracking the error type. */
@@ -320,7 +340,8 @@ Event errCheckWord(const char *fileName, const char *sourceLine, unsigned long i
 		printf("Error: Illegal spacing, data instructor is expected\n");
 	} else if (status == StrayCommentFlag || status == UnexpectedFlag || status == StrayDigitFlag) { /* Found a semicolon on a code line. */
 		errUnexpected();
-	} /* TODO: Add more checks. */
+	} else if (status == IllegalSymbolFlag)
+		printf("SyntaxError: illegal symbol\n");
 
 	printLine(sourceLine, line, index); /* Printing the line. */
 
@@ -453,5 +474,25 @@ void errBothEntryAndExtern(const char *fileName, const char *sourceLine, unsigne
 void errUnexpectedToken(const char *fileName, const char *sourceLine, unsigned long int line, int index) {
 	printMsgTitle(fileName, line, index); /* Printing error message title. */
 	errUnexpected(); /* Printing message. */
-	printLine(sourceLine, line, index); /* Printing the line without the pointer underneath. */
+	printLine(sourceLine, line, index); /* Printing the line. */
+}
+
+/**
+ * A formatted error message for cases where a label is used
+ * but not declared.
+ */
+void errUndeclaredLabel(const char *fileName, SymbolTable *label) {
+	/* The address field should contain the line where the label is used. */
+	printf("%s:%ld: ", fileName, getAddress(label));
+	printf("Error: the label '%s' is used but not declared\n", getSymbol(label));
+}
+
+/**
+ * A formatted error message for cases where a label is defined
+ * as external but is already defined locally.
+ */
+void errDeclaredExtern(const char *fileName, const char *sourceLine, const char *symbol, unsigned long int line) {
+	printf("%s:%ld: ", fileName, line);
+	printf("Error: the external label '%s' is declared locally\n", symbol);
+	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
 }

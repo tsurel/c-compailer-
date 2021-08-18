@@ -95,7 +95,7 @@ Code hasAttribute(SymbolTable *symbolTable, LabelAttribute labelAttribute) {
 }
 
 /**
- * Checks if the given label has any attribute, if it does then a
+ * Checks if the given label has code or data attribute, if it does then a
  * SUCCESS code would be returned and ERROR if otherwise. Used
  * for checking if a label is declared.
  */
@@ -104,11 +104,11 @@ Code isDeclared(SymbolTable *symbolTable) {
 
 	/* Searching trough the attributes array of the given label. */
 	for (index = 0; index < ATTRS_PER_LABEL; index++)
-		if (symbolTable->attributes[index] != EmptyLabel)
-			/* A non-empty attribute was found. */
+		if (symbolTable->attributes[index] == CodeLabel || symbolTable->attributes[index] == DataLabel)
+			/* A code or data attribute was found. */
 			return SUCCESS;
 
-	/* The label has no attributes. */
+	/* The label is not declared. */
 	return ERROR;
 }
 
@@ -120,9 +120,15 @@ Code isDeclared(SymbolTable *symbolTable) {
  * Returns a pointer to the newly created label if the label was
  * created successfully, and a null pointer if otherwise.
  */
-SymbolTable *addSymbol(SymbolTable *symbolTable, char *symbol, unsigned address) {
-	/* Storing the newly created label. */
-	SymbolTable *newLabel = createSymbol(symbol, address);
+SymbolTable *addSymbol(SymbolTable *symbolTable, char *symbol, unsigned long int address) {
+	char *labelSymbol = malloc(strlen(symbol) + 1); /* Allocating memory for the symbol field */
+	SymbolTable *newLabel; /* To store the new label. */
+	
+	if (labelSymbol == NULL)
+		return NULL; /* Memory allocation failed. */
+
+	strcpy(labelSymbol, symbol); /* Copying the given string to the symbol field. */
+	newLabel = createSymbol(labelSymbol, address); /* Storing the newly created label. */
 
 	/* If the given label is a null pointer then there is nothing to skip to. */
 	if (symbolTable != NULL) {

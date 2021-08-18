@@ -41,22 +41,22 @@
  * The following functions should not be used outside of this translation unit.
  */
 Flag rangeDataParam(char *sourceLine, Expectation *expecting, int *count, int *startIndex, int *endIndex);
-Flag extractDataParam(char *sourceLine, const Expectation expecting, const int count, const int startIndex, void **args);
+Flag extractDataParam(char *sourceLine, const Expectation expecting, const int count, const int startIndex, long int *args);
 
 Flag rangeAscizParam(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
-void extractAscizParam(char *sourceLine, const int startIndex, const int endIndex, char **stringParam);
+void extractAscizParam(char *sourceLine, const int startIndex, const int endIndex, char *stringParam);
 
 Flag rangeRParam(char *sourceLine, Expectation *expecting, const char expectedNumParam, int *startIndex, int *endIndex);
 Flag extractRParam(char *sourceLine, const int startIndex, const char paramCount, char *rs, char *rt, char *rd);
 
 Flag rangeIParam(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
-Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, char *rs, char *rt, short *immed, char **label);
+Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, char *rs, char *rt, short *immed, char *isLabel, char *label);
 
 Flag rangeJParam(char *sourceLine, Expectation *expecting, char *isRegister, int *startIndex, int *endIndex);
-Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, const char isRegister, char *reg, char **label);
+Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, const char isRegister, char *reg, char *isLabel, char *label);
 
 Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *endIndex);
-Flag extractWord(char *sourceLine, const int startIndex, const int endIndex, const Flag type, char **word);
+Flag extractWord(char *sourceLine, const int startIndex, const int endIndex, const Flag type, char *word);
 
 
 /**
@@ -247,30 +247,15 @@ Flag rangeDataParam(char *sourceLine, Expectation *expecting, int *count, int *s
  * The fourth parameter should be pointing to the position before the
  * arguments start.
  * The third parameter should contain the number of arguments on this line.
- * This function allocates memory on the heap for the last parameter.
+ * This function the last parameter.
  */
-Flag extractDataParam(char *sourceLine, const Expectation expecting, const int count, const int startIndex, void **args) {
+Flag extractDataParam(char *sourceLine, const Expectation expecting, const int count, const int startIndex, long int *args) {
 	int argsIndex = 0; /* To track where to place each argument on the temporary array. */
-	void *check; /* Used for checking if the memory allocation was successful. */
-	char *dbTemp; /* A temporary array for db arguments. */
-	short *dhTemp; /* A temporary array for dh arguments. */
-	long *dwTemp; /* A temporary array for dw arguments. */
 
 	long int value; /* Used for checking the size of the argument. */
 	/* A pointer to track the position on the line. */
 	char *pointer = sourceLine + startIndex; /* That pointer is immediately set to the first digit of the first argument. */
 	Flag endStatus = NoIssueFlag; /* To check for issues. */
-
-	/* Allocating memory for the array of arguments. */
-	if (expecting == Expect8BitParams)
-		check = dbTemp = calloc(count, BYTE_SIZE); /* db arguments. */
-	else if (expecting == Expect16BitParams)
-		check = dhTemp = calloc(count, HALF_SIZE); /* dh arguments. */
-	else if (expecting == Expect32BitParams)
-		check = dwTemp = calloc(count, WORD_SIZE); /* dw arguments. */
-
-	if (check == NULL)
-		return HardwareErrorFlag; /* Cannot continue without memory. */
 
 	/* Lopping through all the arguments on this line. */
 	while (argsIndex < count) {
@@ -282,23 +267,21 @@ Flag extractDataParam(char *sourceLine, const Expectation expecting, const int c
 			if (expecting == Expect8BitParams) {
 				if (value < MIN_SIGNED_BYTE || value > MAX_SIGNED_BYTE)
 					endStatus = SizeOverflowFlag; /* db overflow. */
-				dbTemp[argsIndex++] = value; /* Inserting the argument into the temporary db array. */
+				args[argsIndex++] = value; /* Inserting the argument into the temporary db array. */
 			} else if (expecting == Expect16BitParams) {
 				if (value < MIN_SIGNED_HALF || value > MAX_SIGNED_HALF)
 					endStatus = SizeOverflowFlag; /* dh overflow. */
-				dhTemp[argsIndex++] = value; /* Inserting the argument into the temporary dh array. */
+				args[argsIndex++] = value; /* Inserting the argument into the temporary dh array. */
 			} else if (expecting == Expect32BitParams) {
 				if (value < MIN_SIGNED_WORD || value > MAX_SIGNED_WORD)
 					endStatus = SizeOverflowFlag; /* dw overflow. */
-				dwTemp[argsIndex++] = value; /* Inserting the argument into the temporary dw array. */
+				args[argsIndex++] = value; /* Inserting the argument into the temporary dw array. */
 			}
 			/* In case of an overflow the less important bytes are taken. */
 		}
 		/* Skipping the rest of the characters that are not a part of a number. */
 		pointer++;
 	}
-
-	*args = check; /* Assigning the address of the array to the return parameter. */
 	return endStatus;
 }
 
@@ -317,7 +300,7 @@ Flag extractDataParam(char *sourceLine, const Expectation expecting, const int c
  * Expect8BitParams, Expect16BitParams, Expect32BitParams.
  * This information is used for the arguments size checking.
  */
-Flag getDataParam(char *sourceLine, Expectation *expecting, int *index, int *count, void **args) {
+Flag getDataParam(char *sourceLine, Expectation *expecting, int *index, int *count, long int *args) {
 	int startIndex = *index; /* The beginning of the range. */
 	int endIndex = *index; /* The ending of the range. */
 	Flag endStatus; /* To detect issues in the source line. */
@@ -406,30 +389,23 @@ Flag rangeAscizParam(char *sourceLine, Expectation *expecting, int *startIndex, 
 }
 
 /**
- * Uses the given range to extract the asciz parameter (string) that is within
+ * Uses the given range to extract the asciz operand (string) that is within
  * that range into the last parameter. The returned value on the last parameter
  * is the string without the quotation marks on the edges and a terminating
  * character at the end.
- * This function allocates memory on the heap for the last parameter, in
- * case the allocation failed the last parameter would be null.
+ * This function modifies the last parameter.
  */
-void extractAscizParam(char *sourceLine, const int startIndex, const int endIndex, char **stringParam) {
+void extractAscizParam(char *sourceLine, const int startIndex, const int endIndex, char *stringParam) {
 	int index; /* Index on the line (source). */
 	int paramIndex = 0; /* Index on the string parameter (destination). */
-	char *temp; /* Temporary array to copy the string to. */
 
-	temp = malloc(endIndex - startIndex); /* Allocating memory for the string. */
-	if (temp == NULL)
-		return; /* Cannot continue without memory. */
-
-	/* The following loop copies the string from the given line to the temporary array. */
+	/* The following loop copies the string from the given line to the given array. */
 	for (index = startIndex + 1; index < endIndex; index++, paramIndex++){
-		temp[paramIndex] = sourceLine[index];
+		stringParam[paramIndex] = sourceLine[index];
 	}
 
 	/* Adding the terminating character at the end. */
-	temp[paramIndex] = TERMINATING_CHAR;
-	*stringParam = temp; /* Setting the last parameter to point to that array. */
+	stringParam[paramIndex] = TERMINATING_CHAR;
 }
 
 /**
@@ -442,9 +418,8 @@ void extractAscizParam(char *sourceLine, const int startIndex, const int endInde
  * In case there were no issues the last parameter would contain the extracted
  * string and the third parameter would point to the index after the string
  * definition.
- * Note that memory for the last parameter is allocated on the heap.
  */
-Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **stringParam) {
+Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char *stringParam) {
 	int startIndex = *index; /* The beginning of the range. */
 	int endIndex = *index; /* The ending of the range. */
 	Flag endStatus; /* To detect issues in the source file. */
@@ -456,8 +431,6 @@ Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **
 	/* If no syntax issues were found the string would be extracted. */
 	if (endStatus == NoIssueFlag && *expecting == ExpectEnd) {
 		extractAscizParam(sourceLine, startIndex, endIndex, stringParam);
-		if (*stringParam == NULL)
-			endStatus = HardwareErrorFlag; /* Memory allocation was not successful. */
 	} else
 		/* If there is a syntax error then the index would be set to that position. */
 		*index = endIndex;
@@ -649,7 +622,7 @@ Flag rangeIParam(char *sourceLine, Expectation *expecting, int *startIndex, int 
 	char isLineEmpty = 1; /* To track if this part of the line is empty or not. */
 	char isExpectingLabel = 0; /* To track if the last operand should be a label. */
 	char isExpectingRegister = 0; /* To track if the last operand should be a register. */
-	char isOnLabel = 0; /* To track when to stop after a label */
+	char isOnLabel = 0; /* To track when to stop after a label. */
 	Flag endStatus = NoIssueFlag; /* To detect issues in the source code. */
 	*expecting = ExpectDollarSign; /* Expecting register operand. */
 
@@ -760,25 +733,24 @@ Flag rangeIParam(char *sourceLine, Expectation *expecting, int *startIndex, int 
  * last two would contain actual value.
  * If the last operand is a label then immed would remain untouched,
  * and if the second operand is an immediate value then the last
- * parameter would be a null pointer. rt and rs will store the
- * two other operands.
- * This function may or may not allocate memory on the heap for the last
- * parameter.
+ * parameter would be untouched. rt and rs will store the two
+ * other operands.
+ * This function may or may not modify the last parameter.
  * This function also check if the register addresses are valid, if they
- * are not then InvalidRegisterFlag flag would be returned and no memory
- * would be allocated, same for the length of the label.
+ * are not then InvalidRegisterFlag flag would be returned and the last
+ * parameter would be untouched, same for the length of the label.
  * Expects the second parameter to be set to the index where the I
  * operands definition begins.
  */
-Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, char *rs, char *rt, short *immed, char **label) {
-	int destIndex; /* To track the temporary array of the symbol */
+Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, char *rs, char *rt, short *immed, char *isLabel, char *label) {
+	int destIndex; /* To track the array of the symbol */
 	int symbolSize; /* To store the length of the symbol array. */
-	char isLabel = 0; /* To track what are the operands to extract. */
 	long int value = 0; /* To store every extracted value to check limits before assignment. */
 	/* A pointer to track the position on the line. */
 	char *pointer = sourceLine + startIndex + 1; /* That pointer is immediately set to the first digit of the first operand. */
-	char *temp = NULL; /* A temporary pointer to point to the symbol of the label if there is one. */
 	Flag endStatus = NoIssueFlag; /* To detect issues in the source line. */
+
+	*isLabel = 0; /* To track what are the operands to extract, no label by default. */
 
 	value = strtol(pointer, &pointer, DECIMAL); /* Extracting the first operand. */
 	/* Checking if the operand is valid. */
@@ -789,14 +761,14 @@ Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, c
 	/* Skipping to the next operand. */
 	while (!isdigit(*pointer) && *pointer != PLUS && *pointer != MINUS) {
 		if (*pointer == DOLLAR_SIGN) { /* The second operand is a register. */
-			isLabel = 1; /* The last operand must be a label. */
+			*isLabel = 1; /* The last operand must be a label. */
 			pointer++;
 			break; /* The next character must be a digit */
 		}
 		pointer++;
 	}
 
-	if (isLabel) { /* Handling the label with the other operand. */
+	if (*isLabel) { /* Handling the label with the other operand. */
 		value = strtol(pointer, &pointer, DECIMAL); /* Extracting the second operand. */
 		/* Checking if the operand is valid. */
 		if (value < 0 || value > MAX_REGISTER)
@@ -812,15 +784,13 @@ Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, c
 		symbolSize = endIndex - (pointer - sourceLine) + 2;
 		if (symbolSize > MAX_REGISTER + 1) /* + 1 for a terminating character. */
 			return IllegalSymbolFlag; /* Label symbols cannot be longer than 31. */
-		if ((temp = malloc(symbolSize)) == NULL)
-			return HardwareErrorFlag; /* Cannot continue without memory. */
 
-		/* The following loop copies the symbol from the given line to the temporary array. */
+		/* The following loop copies the symbol from the given line to the given array. */
 		for (destIndex = 0; destIndex < symbolSize - 1; destIndex++, pointer++){
-			temp[destIndex] = *pointer;
+			label[destIndex] = *pointer;
 		}
 		/* Adding the terminating character at the end. */
-		temp[destIndex] = TERMINATING_CHAR;
+		label[destIndex] = TERMINATING_CHAR;
 	} else { /* Handling the immediate value with the other operand. */
 		value = strtol(pointer, &pointer, DECIMAL); /* Extracting the second operand. */
 		/* Checking if the operand has a valid size. */
@@ -839,7 +809,6 @@ Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, c
 			return InvalidRegisterFlag; /* The operand is not valid. */
 		*rt = value; /* The operand is valid. */
 	}
-	*label = temp; /* Assigning the symbol to the return parameter, if there was one. Null if otherwise. */
 	return endStatus;
 }
 
@@ -852,14 +821,13 @@ Flag extractIParam(char *sourceLine, const int startIndex, const int endIndex, c
  * In case there were no issues the last four parameters would contain the
  * extracted operands and the third parameter would point to the index after
  * the operands definition.
- * Expects the fourth parameter to be positioned before the operands.
- * This function may or may not allocate memory on the heap for the last
- * parameter based on what the operands are. If the last operand is a label
- * then memory would be allocated (if there were no errors), and if the
- * second operand is an immediate value then the last parameter would be
- * set to a null pointer.
+ * Expects the third parameter to be positioned before the operands.
+ * This function may or may not modify the last parameter based on what the
+ * operands are. If the last operand is a label then it would be modified
+ * (if there were no errors), and if the second operand is an immediate
+ * value then the last parameter would be untouched.
  */
-Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, char *rt, short *immed, char **label) {
+Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, char *rt, short *immed, char *isLabel, char *label) {
 	int startIndex = *index; /* The beginning of the range. */
 	int endIndex = *index; /* The ending of the range. */
 	Flag endStatus; /* To detect issues in the source line. */
@@ -870,7 +838,7 @@ Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, c
 
 	/* If no syntax issues were found the operand would be extracted. */
 	if (endStatus == NoIssueFlag && (*expecting == ExpectDigitOrEnd || *expecting == ExpectLabel))
-		endStatus = extractIParam(sourceLine, startIndex, endIndex, rs, rt, immed, label);
+		endStatus = extractIParam(sourceLine, startIndex, endIndex, rs, rt, immed, isLabel, label);
 	else
 		/* If there is a syntax error then the index would be set to that position. */
 		*index = endIndex;
@@ -974,25 +942,25 @@ Flag rangeJParam(char *sourceLine, Expectation *expecting, char *isRegister, int
  * returns it through one of the last two parameters.
  * If the operand is a label then reg would remain untouched,
  * and if the operand is a register then the last parameter
- * would be a null pointer.
+ * would be untouched.
  * This function may or may not allocate memory on the heap for the last
  * parameter.
  * This function also check if the register address is valid, if it is
- * not then InvalidRegisterFlag flag would be returned and no memory
- * would be allocated, same for the length of the label.
+ * not then InvalidRegisterFlag flag would be returned and the last
+ * parameter would be untouched, same for the length of the label.
  * Expects the second parameter to be set to the index where the J
  * operand definition begins and the fifth parameter to be set to 1
  * if the operand to extract is a register and 0 if it is a label.
  */
-Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, const char isRegister, char *reg, char **label) {
-	int destIndex; /* To track the temporary array of the symbol */
+Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, const char isRegister, char *reg, char *isLabel, char *label) {
+	int destIndex; /* To track the array of the symbol */
 	int symbolSize; /* To store the length of the symbol array. */
 	long int value = 0; /* To store every extracted value to check limits before assignment. */
 	char *pointer; /* A pointer to track the position on the line. */
-	char *temp = NULL; /* A temporary pointer to point to the symbol of the label if there is one. */
 	Flag endStatus = NoIssueFlag; /* To detect issues in the source line. */
 
 	if (isRegister) { /* The Operand is a register. */
+		*isLabel = 0; /* The operand is not a label. */
 		/* Setting the pointer to the first digit of the operand right after the dollar sign. */
 		pointer = sourceLine + startIndex + 1;
 
@@ -1002,22 +970,20 @@ Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, c
 			return InvalidRegisterFlag; /* The operand is not valid. */
 		*reg = value; /* The operand is valid. */
 	} else { /* The Operand is a label. */
+		*isLabel = 1;
 		pointer = sourceLine + startIndex;
 		symbolSize = endIndex - startIndex + 2;
 		if (symbolSize > MAX_REGISTER + 1) /* + 1 for a terminating character. */
 			return IllegalSymbolFlag; /* Label symbols cannot be longer than 31. */
-		if ((temp = malloc(symbolSize)) == NULL) /* Allocating memory to store the symbol. */
-			return HardwareErrorFlag; /* Cannot continue without memory. */
 
-		/* The following loop copies the symbol from the given line to the temporary array. */
+		/* The following loop copies the symbol from the given line to the given array. */
 		for (destIndex = 0; destIndex < symbolSize - 1; destIndex++, pointer++){
-			temp[destIndex] = *pointer;
+			label[destIndex] = *pointer;
 		}
 		/* Adding the terminating character at the end. */
-		temp[destIndex] = TERMINATING_CHAR;
+		label[destIndex] = TERMINATING_CHAR;
 	}
 
-	*label = temp; /* Assigning the symbol to the return parameter, if there was one. Null if otherwise. */
 	return endStatus;
 }
 
@@ -1031,13 +997,13 @@ Flag extractJParam(char *sourceLine, const int startIndex, const int endIndex, c
  * extracted operand and the third parameter would point to the index after
  * the operands definition.
  * Expects the third parameter to be positioned before the operands.
- * This function may or may not allocate memory on the heap for the last
- * parameter based on what the operand is. If the operand is a label then
- * memory would be allocated (if there were no errors), and if the
- * operand is a register then the last parameter would be set to a
- * null pointer while the fourth parameter would point to the register's address.
+ * This function may or may not modify the last parameter based on what the
+ * operand is. If the operand is a label then the parameter would be modified
+ * (if there were no errors), and if the operand is a register then the last
+ * parameter would be untouched while the fourth parameter would
+ * point to the register's address.
  */
-Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, char **label) {
+Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, char *isLabel, char *label) {
 	int startIndex = *index; /* The beginning of the range. */
 	int endIndex = *index; /* The ending of the range. */
 	char isRegister = 0;
@@ -1049,7 +1015,7 @@ Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, 
 
 	/* If no syntax issues were found the operand would be extracted. */
 	if (endStatus == NoIssueFlag && (*expecting == ExpectDigitOrEnd || *expecting == ExpectLabel))
-		endStatus = extractJParam(sourceLine, startIndex, endIndex, isRegister, reg, label);
+		endStatus = extractJParam(sourceLine, startIndex, endIndex, isRegister, reg, isLabel, label);
 	else
 		/* If there is a syntax error then the index would be set to that position. */
 		*index = endIndex;
@@ -1149,11 +1115,8 @@ Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *e
 		endStatus = UnexpectedFlag;
 		break; /* Found an unexpected character. */
 	}
-	/* Setting the end of the range. */
-	if (endStatus == LabelFlag && c != COLON)
-		*endIndex = index - 2; /* If its a label the range will not include the colon. */
-	else
-		*endIndex = index - 1;
+	
+	*endIndex = index - 1; /* Setting the end of the range. */
 
 	/* Checking if an issue was found. */
 	if ((endStatus != LabelFlag && endStatus != InstructorFlag && endStatus != OperatorFlag && endStatus != CommentLineFlag) ||
@@ -1173,30 +1136,25 @@ Flag rangeWord(char *sourceLine, Expectation *expecting, int *startIndex, int *e
  * given flag from the fourth parameter.
  * If there were issues then they can be extracted using the returned
  * flag and the last parameter would be set to null.
- * Expects the second parameter should be set to the index before the
+ * Expects the second parameter to be set to the index before the
  * word starts.
- * This function allocates memory on the heap for the last parameter.
  */
-Flag extractWord(char *sourceLine, const int startIndex, const int endIndex, const Flag type, char **word) {
-	int destIndex; /* To track the temporary array of the word */
+Flag extractWord(char *sourceLine, const int startIndex, const int endIndex, const Flag type, char *word) {
+	int destIndex; /* To track the array of the word */
 	int symbolSize; /* To store the length of the word array. */
 	char *pointer = sourceLine + startIndex; /* A pointer to track the position on the line. */
-	char *temp = NULL; /* A temporary pointer to point to the word. */
 
 	symbolSize = endIndex - startIndex + 2;
 	if (symbolSize > MAX_REGISTER + 1) /* + 1 for a terminating character. */
 		return IllegalSymbolFlag; /* Label symbols cannot be longer than 31. */
-	if ((temp = malloc(symbolSize)) == NULL) /* Allocating memory for the word. */
-		return HardwareErrorFlag; /* Cannot continue without memory. */
 
-	/* The following loop copies the word from the given line to the temporary array. */
+	/* The following loop copies the word from the given line to the given array. */
 	for (destIndex = 0; destIndex < symbolSize - 1; destIndex++, pointer++){
-		temp[destIndex] = *pointer;
+		word[destIndex] = *pointer;
 	}
 
 	/* Adding the terminating character at the end. */
-	temp[destIndex] = TERMINATING_CHAR;
-	*word = temp; /* Setting the last parameter to point to that array. */
+	word[destIndex] = TERMINATING_CHAR;
 
 	return type;
 }
@@ -1214,19 +1172,21 @@ Flag extractWord(char *sourceLine, const int startIndex, const int endIndex, con
  * last parameter would remain untouched and the third parameter would point
  * to the index where the comment character is positioned in the line.
  */
-Flag getWord(char *sourceLine, Expectation *expecting, int *index, char **word) {
+Flag getWord(char *sourceLine, Expectation *expecting, int *index, char *word) {
 	int startIndex = *index; /* The beginning of the range. */
 	int endIndex = *index; /* The ending of the range. */
 	Flag endStatus; /* To detect issues in the source line. */
 
 	/* Getting the range of indexes between which the word is declared. */
 	endStatus = rangeWord(sourceLine, expecting, &startIndex, &endIndex);
-	*index = endIndex + 1; /* Setting the index to the position of the terminating character. */
+	*index = endIndex + 1; /* Setting the index to the position after the word. */
 
 	/* If no syntax issues were found the word would be extracted. */
-	if ((endStatus == LabelFlag || endStatus == InstructorFlag || endStatus == OperatorFlag) && *expecting == ExpectEnd)
+	if ((endStatus == LabelFlag || endStatus == InstructorFlag || endStatus == OperatorFlag) && *expecting == ExpectEnd) {
+		if (endStatus == LabelFlag)
+			endIndex--; /* Excluding the colon from the label (if it is a label) during extraction. */
 		endStatus = extractWord(sourceLine, startIndex, endIndex, endStatus, word);
-	else
+	} else
 		/* If there is a syntax error then the index would be set to its position. */
 		*index = endIndex; /* If its a comment then there is no word to extract and the line should be skipped. */
 	return endStatus;

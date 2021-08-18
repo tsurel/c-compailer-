@@ -99,7 +99,14 @@ Event errCheckI(const char *fileName, const char *sourceLine, unsigned long int 
 Event errCheckJ(const char *fileName, const char *sourceLine, unsigned long int line, int index, Expectation expecting, Flag status);
 
 /**
- * Unfinished
+ * Checks for issues that may be found in the source file
+ * after calling the getWord function.
+ * Uses the last two parameters for the error checking
+ * and the rest of the parameters for the error message.
+ * If an issue was found an error message would be
+ * printed.
+ * Returns an Event enumeration value that can be used
+ * to determine what was the issue (if there was one).
  */
 Event errCheckWord(const char *fileName, const char *sourceLine, unsigned long int line, int index, Expectation expecting, Flag status);
 
@@ -159,5 +166,17 @@ void errBothEntryAndExtern(const char *fileName, const char *sourceLine, unsigne
  * character appeared after operands in the source file.
  */
 void errUnexpectedToken(const char *fileName, const char *sourceLine, unsigned long int line, int index);
+
+/**
+ * A formatted error message for cases where a label is used
+ * but not declared.
+ */
+void errUndeclaredLabel(const char *fileName, SymbolTable *label);
+
+/**
+ * A formatted error message for cases where a label is defined
+ * as external but is already defined locally.
+ */
+void errDeclaredExtern(const char *fileName, const char *sourceLine, const char *symbol, unsigned long int line);
 
 #endif

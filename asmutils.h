@@ -103,14 +103,14 @@ Flag extractSourceLine(FILE *sourceFile, char *line, int *lineLength);
  * where the issue was found.
  * In case there were no issues the last parameter would contain the extracted
  * arguments and the third parameter would point to the index with the
- * terminating character (the end of the line) while the forth parameter would
+ * terminating character (the end of the line) while the fourth parameter would
  * contain the number of extracted arguments.
  * Expects the third parameter to be positioned before the arguments and the
  * second parameter to be either one of the following expectations:
  * Expect8BitParams, Expect16BitParams, Expect32BitParams.
  * This information is used for the arguments size checking.
  */
-Flag getDataParam(char *sourceLine, Expectation *expecting, int *index, int *count, void **args);
+Flag getDataParam(char *sourceLine, Expectation *expecting, int *index, int *count, long int *args);
 
 /**
  * Scans a portion from the given source line and extracts the string
@@ -122,9 +122,8 @@ Flag getDataParam(char *sourceLine, Expectation *expecting, int *index, int *cou
  * In case there were no issues the last parameter would contain the extracted
  * string and the third parameter would point to the index after the string
  * definition.
- * Note that memory for the last parameter is allocated on the heap.
  */
-Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char **stringParam);
+Flag getAscizParam(char *sourceLine, Expectation *expecting, int *index, char *stringParam);
 
 /**
  * Scans a portion of the given source line and extracts the operands
@@ -149,14 +148,13 @@ Flag getRParam(char *sourceLine, Expectation *expecting, const char paramCount, 
  * In case there were no issues the last four parameters would contain the
  * extracted operands and the third parameter would point to the index after
  * the operands definition.
- * Expects the forth parameter to be positioned before the operands.
- * This function may or may not allocate memory on the heap for the last
- * parameter based on what the operands are. If the last operand is a label
- * then memory would be allocated (if there were no errors), and if the
- * second operand is an immediate value then the last parameter would be
- * set to a null pointer.
+ * Expects the third parameter to be positioned before the operands.
+ * This function may or may not modify the last parameter based on what the
+ * operands are. If the last operand is a label then it would be modified
+ * (if there were no errors), and if the second operand is an immediate
+ * value then the last parameter would be untouched.
  */
-Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, char *rt, short *immed, char **label);
+Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, char *rt, short *immed, char *isLabel, char *label);
 
 /**
  * Scans a portion of the given source line and extracts the operand into
@@ -168,13 +166,13 @@ Flag getIParam(char *sourceLine, Expectation *expecting, int *index, char *rs, c
  * extracted operand and the third parameter would point to the index after
  * the operands definition.
  * Expects the third parameter to be positioned before the operands.
- * This function may or may not allocate memory on the heap for the last
- * parameter based on what the operand is. If the operand is a label then
- * memory would be allocated (if there were no errors), and if the
- * operand is a register then the last parameter would be set to a
- * null pointer while the fourth parameter would point to the register's address.
+ * This function may or may not modify the last parameter based on what the
+ * operand is. If the operand is a label then the parameter would be modified
+ * (if there were no errors), and if the operand is a register then the last
+ * parameter would be untouched while the fourth parameter would
+ * point to the register's address.
  */
-Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, char **label);
+Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, char *isLabel, char *label);
 
 /**
  * Scans a portion of the given source line and extracts the word
@@ -189,7 +187,7 @@ Flag getJParam(char *sourceLine, Expectation *expecting, int *index, char *reg, 
  * last parameter would remain untouched and the third parameter would point
  * to the index where the comment character is positioned in the line.
  */
-Flag getWord(char *sourceLine, Expectation *expecting, int *index, char **word);
+Flag getWord(char *sourceLine, Expectation *expecting, int *index, char *word);
 
 /**
  * Checks if the extension of the given file's name is an assembly source
