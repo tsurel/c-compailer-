@@ -4,6 +4,7 @@
 #include "converter.h"
 #include "asmutils.h"
 #include "keywords.h"
+#include "errmsg.h"
 
 /**
  * Assembles the content of the source files, provided as arguments, from assembly
@@ -24,8 +25,7 @@ int main(int argc, char const *argv[]) {
 	/* Initializing the assembly keywords container. */
 	if (initasmKeywords() == ERROR) {
 		/* If the initialization failed the assembler cannot run. */
-		printf("Initialization error: essential memory allocation has failed.");
-		exit(EXIT_FAILURE);
+		errFatal();
 	}
 
 	/* Relevant arguments starts at 1. */

@@ -18,7 +18,8 @@
 #define OUTPUT_ENT_EXTENTION ".ent" /* Output entries file extension for assembled source files. */
 #define OUTPUT_EXT_EXTENTION ".ext" /* Output externals file extension for assembled source files. */
 
-#define MAX_LABEL_SIZE 31
+#define MAX_LABEL_SIZE 31 /* The maximum number of characters allowed in a symbol. */
+#define MEMORY_START_ADDRESS 100 /* The memory address from which the program should be loaded. */
 
 /**
  * The following functions should not be used outside this translation unit.
@@ -27,7 +28,7 @@ Code checkSymbolTabel(const char *fileName, SymbolTable *symbolTable, Code code)
 Code map(FILE *file, const char *fileName, SymbolTable **symboltable, char *sourceLine, unsigned long int *ic, unsigned long int *dc);
 void increaseDataCounterByData(unsigned long int *dc, const int count, Expectation sizeExpectation);
 void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *sourceLine, const unsigned long int ic, const unsigned long int dc);
-void extractOutputFileNames(const char *sourceFileName, char **obFileName, char **entFileName, char **extFileName);
+void extractOutputFileNames(const char *sourceFileName, char *obFileName, char *entFileName, char *extFileName);
 void assembleR(FILE *output, unsigned long int address, Operator *op, char rs, char rt, char rd);
 void assembleI(FILE *output, unsigned long int address, Operator *op, char rs, char rt, short immed);
 void assembleJ(FILE *output, unsigned long int address, Operator *op, char isRegister, unsigned long int addressValue);
@@ -35,58 +36,43 @@ void assembleAsciz(char *dataSegment, char *str, unsigned long int *startIndex);
 void assembleData(char *dataSegment, unsigned long int *startIndex, const Expectation expecting, const int count, long int *args);
 void writePlain(FILE *output, char *symbol, unsigned long int address);
 void writeDataSegment(FILE *output ,const unsigned long int dc, char *dataSegment, unsigned long int address);
-/* TODO: Implement the assembler itself using the functions above. */
 
-/* __Temporary test code__ */
-void test(FILE *file) {
-	Flag flag;
-	Expectation expecting = Expect8BitParams;
-	int index = -1;
-	char *line = malloc(SOURCE_LINE_LENGTH + 1);
-	char *str = NULL;
-
-	if (line == NULL)
-		exit(EXIT_FAILURE);
-
-	flag = extractSourceLine(file, line, &index);
-	printf("%s\n", line);
-
-	index = 0;
-	flag = getWord(line, &expecting, &index, str);
-
-	printf("%d\t%d\t%d\n", flag, expecting, index);
-	if ((flag == LabelFlag || flag == InstructorFlag || flag == OperatorFlag) && expecting == ExpectEnd) {
-		if (str != NULL) {
-			printf("%s\n", str);
-			free(str);
-		}
-	}
-
-	index = -1;
-	flag = extractSourceLine(file, line, &index);
-	printf("%s\n%d\n", line, flag);
-	index = 0;
-	flag = getAscizParam(line, &expecting, &index, str);
-	printf("%d\t%d\t%d\n", flag, expecting, index);
-	if (str != NULL)
-		printf("%s\n", str);
-
-	free(line);
-}
-
+/**
+ * Takes in an assembly source file as a stream and assembles
+ * it after checking if it has any issues. The file is assembled
+ * only if it has no issues. If the file contains invalid syntax
+ * or any other assembly related problem it would not be
+ * assembled and error messages would be printed for the user
+ * to see. The error messages can tell the user what are the
+ * issues with his code.
+ */
 void assemble(FILE *sourceFile, const char *fileName) {
-	unsigned long int ic = 100; /* Operator line counter (instruction counter). */
+	unsigned long int ic = MEMORY_START_ADDRESS; /* Operator line counter (instruction counter). */
 	unsigned long int dc = 0; /* Data instruction counter (data counter). */
-	Code code;
-	SymbolTable *symbolTable;
-	char *sourceLine = malloc(SOURCE_LINE_LENGTH + 1);
+	Code code; /* To track if output file should be created. */
+	SymbolTable *symbolTable, *edit; /* Symbol table variables, the first is to point to the symbol table and the second is to point to a specific label. */
+	char *sourceLine = malloc(SOURCE_LINE_LENGTH + 1); /* A pointer to every source line, used for scanning the file line by line. */
 
+	if (sourceLine == NULL)
+		errFatal(); /* Cannot continue without memory for the line. */
+
+	/* Mapping the source file for labels and errors. */
 	code = map(sourceFile, fileName, &symbolTable, sourceLine, &ic, &dc);
 
-	code = checkSymbolTabel(fileName, getNext(symbolTable), code);
+	edit = symbolTable; /* Starting from the first label */
+	while (edit != NULL) { /* Looping through all of the labels in the symbol table. */
+		if (hasAttribute(edit, DataLabel) == SUCCESS)
+			setAddress(edit, getAddress(edit) + ic); /* All data labels should be positioned after the code segment. */
+		edit = getNext(edit); /* Getting the next label. */
+	}
 
-	if (code == SUCCESS)
-		convert(sourceFile, fileName, symbolTable, sourceLine, ic, dc);
+	/* Looking for undeclared labels. */
+	code = checkSymbolTabel(fileName, getNext(symbolTable), code); /* Ignoring the first impossible initializing label. */
+
+	if (code == SUCCESS) { /* If the source file had no issues it can be assembled. */
+		rewind(sourceFile); /* Preparing to re-scan the file from the beginning. */
+		convert(sourceFile, fileName, symbolTable, sourceLine, ic - MEMORY_START_ADDRESS, dc); /* Creating the output files. */
+	}
 
 	/* Freeing the memory. */
 	free(sourceLine);
@@ -111,7 +97,27 @@ Code checkSymbolTabel(const char *fileName, SymbolTable *symbolTable, Code code)
 	return code;
 }
 
-/* Unfinished. */
+/**
+ * Maps the given source file for labels and errors.
+ * This function initializes the given symbol table
+ * and assigns to it all the labels found in the
+ * given source files. In addition this function
+ * check that the given source file is valid
+ * meaning, it has no syntax errors or other similar
+ * issues and it can be assembled.
+ * Also this function counts the size of the code
+ * segment and data segment via the last two
+ * parameters and prints out a message for the user
+ * for every error found in the source file.
+ * Returns an error code that indicates if the
+ * given file should be assembled (meaning it has no
+ * issues). If an assembled output file(s) should be
+ * created this function would return SUCCESS and
+ * if no assembled output files should be created
+ * ERROR would be returned instead.
+ * Note: the given symbol table is initialized to an
+ * impossible label that should be ignored.
+ */
 Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sourceLine, unsigned long int *ic, unsigned long int *dc) {
 	const char codeLineSize = 4; /* The size of an assembled code line, used for address tracking. */
 	const char *stopOperator = "stop"; /* Special case keyword, no operands. */
@@ -139,9 +145,8 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 	Expectation expecting; /* To differentiate different situations and catch issues. */
 	Expectation dataExpectation; /* Used for holding the expectation of a data instructor. */
 	Flag status; /* To differentiate different situations and catch issues. */
-	Event event; /* To check if an error was found in the assembly source file. */
 
-	if ((edit = front = addSymbol(NULL, "", 0)) == NULL) /* Initializing the symbol table with an impossible label. */
+	if ((edit = front = addSymbol(NULL, "!", 0)) == NULL) /* Initializing the symbol table with an impossible label. */
 		errFatal(); /* Memory allocation failed, cannot continue the program. */
 
 	if ((word = malloc(MAX_LABEL_SIZE + 1)) == NULL || /* +1 for a terminating character. */
@@ -158,7 +163,7 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 
 		if ((status = extractSourceLine(file, sourceLine, &index)) == EndFileFlag)
 			shouldStop = 1; /* This is the last line in the source file. */
-		if ((event = errCheckLine(fileName, sourceLine, lineNum, index, status)) == EEvent) { /* Checking and handling source file issues. */
+		if (errCheckLine(fileName, sourceLine, lineNum, index, status) == EEvent) { /* Checking and handling source file issues. */
 			code = ERROR; /* No output should be created for this source file. */
 			continue; /* The line is corrupted. */
 		}
@@ -184,7 +189,7 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 			}
 			continue; /* The line is corrupted or empty. */
 		}
-		if ((event = errCheckWord(fileName, sourceLine, lineNum, index, expecting, status)) == EEvent) { /* Checking and handling source file issues. */
+		if (errCheckWord(fileName, sourceLine, lineNum, index, expecting, status) == EEvent) { /* Checking and handling source file issues. */
 			code = ERROR; /* No output should be created for this source file. */
 			continue; /* The line is corrupted. */
 		}
@@ -271,6 +276,7 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 			instructor = searchInstructorByString(word); /* Getting the instructor. */
 			if (instructor == NULL) {
 				errInvalidKeyword(fileName, sourceLine, word, lineNum); /* The instructor is invalid. */
+				code = ERROR; /* No output should be created for this source file. */
 				continue; /* The line is corrupted. */
 			}
 			dataExpectation = getExpectation(instructor); /* Saving the expectation. */
@@ -366,28 +372,41 @@ Code map(FILE *file, const char *fileName, SymbolTable **symbolTable, char *sour
 }
 
 /**
- * Incrementing the given data counter based on the size of
+ * Increments the given data counter based on the size of
  * the arguments determined by the last parameter.
  */
 void increaseDataCounterByData(unsigned long int *dc, const int count, Expectation sizeExpectation) {
 	const char halfSize = 2; /* The size of every dh argument. */
 	const char wordSize = 4; /* The size of every dw argument. */
 	if (sizeExpectation == Expect8BitParams)
-		(*dc) += count;
+		(*dc) += count; /* Increment for db. */
 	else if (sizeExpectation == Expect16BitParams)
-		(*dc) += (count * halfSize);
+		(*dc) += (count * halfSize); /* Increment for dh. */
 	else
-		(*dc) += (count * wordSize);
+		(*dc) += (count * wordSize); /* Increment for dw. */
 }
 
-/* Unfinished and untested, requires map to be tested. */
+/**
+ * Assembles the given source file into output files
+ * created by this function. This function expects
+ * the given source file to contain no issues and the
+ * given symbol table to be initialized and set with
+ * all labels from the file in it. In addition the
+ * last two parameters are expected to equal the size
+ * of the code segment and the size of the data
+ * segment respectively.
+ * This function will create an .ob file for all the
+ * assembled data and .ent or .ext files if the
+ * source file contains entry or external labels
+ * respectively.
+ */
 void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *sourceLine, const unsigned long int ic, const unsigned long int dc) {
 	const char assembledLineSize = 4; /* The size for the bit field in the output file. */
 	const char *stopOperator = "stop"; /* Special case keyword, no operands. */
 	int index; /* An index to track the position on the line. */
 	int lengthCheck = -1; /* A variable to use the extractSourceLine function. */
 	int count; /* Used for counting arguments for db, dh, and dw keywords. */
-	unsigned long int address = 100; /* To track the memory address of the assembled operators in the output file. */
+	unsigned long int address = MEMORY_START_ADDRESS; /* To track the memory address of the assembled operators in the output file. */
 	char shouldStop = 0; /* To track when the loop should stop meaning, the source file has ended */
 	char isLabeledArgSet = 0; /* To use the "getIParam" and "getJParam" functions from asmutils. */
 	char *word; /* A variable to store the labels\Instructors\Operators returned from getWord. */
@@ -408,8 +427,17 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 	Expectation sizeExpectation; /* Used for extracting data arguments. */
 	Flag status; /* To differentiate different situations and catch memory allocation issues. */
 
+
+	/* Allocating memory for the strings that should store the output file names. */
+	if ((obFileName = malloc(strlen(fileName) - FILE_EXTENSION_LEN + strlen(OUTPUT_OB_EXTENTION) + 1)) == NULL)
+		errFatal(); /* Cannot continue without memory. */
+	if ((entFileName = malloc(strlen(fileName) - FILE_EXTENSION_LEN + strlen(OUTPUT_ENT_EXTENTION) + 1)) == NULL)
+		errFatal(); /* Cannot continue without memory. */
+	if ((extFileName = malloc(strlen(fileName) - FILE_EXTENSION_LEN + strlen(OUTPUT_EXT_EXTENTION) + 1)) == NULL)
+		errFatal(); /* Cannot continue without memory. */
+
 	/* Getting the names of the output files. */
-	extractOutputFileNames(fileName, &obFileName, &entFileName, &extFileName);
+	extractOutputFileNames(fileName, obFileName, entFileName, extFileName);
 
 	outputObj = fopen(obFileName, "w+"); /* Creating/recreating the output file. */
 	if (outputObj == NULL)
@@ -469,7 +497,7 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
 							if (outputEnt == NULL)
 								errFatal(); /* should not happen but, just in case. */
 						}
-						writePlain(outputEnt, getSymbol(label), address); /* Writing to the entry file. */
+						writePlain(outputEnt, getSymbol(label), getAddress(label)); /* Writing to the entry file. */
 					} else if (hasAttribute(label, ExternLabel) == SUCCESS) {
 						if (outputExt == NULL) { /* If that file was not created yet then it would be created. */
 							outputExt = fopen(extFileName, "w+"); /* Creating\recreating the output file. */
@@ -521,45 +549,36 @@ void convert(FILE *file, const char *fileName, SymbolTable *symboltable, char *s
  * Extracts the file name without the extension from the first parameter and
  * assigns that name as a string into the last three parameters, as well as
  * assigning them their own extensions: .ob .ent .ext respectively.
- * This function allocates memory on the heap for the last three buffers.
+ * This function modifies the last three buffers.
  * This is a private utility function for the convert function.
  */
-void extractOutputFileNames(const char *sourceFileName, char **obFileName, char **entFileName, char **extFileName) {
+void extractOutputFileNames(const char *sourceFileName, char *obFileName, char *entFileName, char *extFileName) {
 	const char nullTermination = '\0'; /* Null terminating character, used for string handling. */
 	char *srcFileName; /* To contain the source file name without the extension. */
 	int sourceFileNameLen = strlen(sourceFileName); /* Used in multiple locations. */
 
-	/* Allocating memory for the strings that should store the output file names. */
-	if ((*obFileName = malloc(sourceFileNameLen - FILE_EXTENSION_LEN + strlen(OUTPUT_OB_EXTENTION) + 1)) == NULL) {
-		exit(EXIT_FAILURE); /* Cannot continue without memory. */
-	}
-	if ((*entFileName = malloc(sourceFileNameLen - FILE_EXTENSION_LEN + strlen(OUTPUT_ENT_EXTENTION) + 1)) == NULL) {
-		exit(EXIT_FAILURE); /* Cannot continue without memory. */
-	}
-	if ((*extFileName = malloc(sourceFileNameLen - FILE_EXTENSION_LEN + strlen(OUTPUT_EXT_EXTENTION) + 1)) == NULL) {
-		exit(EXIT_FAILURE); /* Cannot continue without memory. */
-	}
-	if ((srcFileName = malloc(sourceFileNameLen - FILE_EXTENSION_LEN)) == NULL) {
-		exit(EXIT_FAILURE); /* Cannot continue without memory. */
-	}
+	/* Allocating memory for the extension-less file name buffer. */
+	if ((srcFileName = malloc(sourceFileNameLen - FILE_EXTENSION_LEN)) == NULL)
+		errFatal(); /* Cannot continue without memory. */
 
 	/* Extracting the source file's name without the extension into srcFileName. */
 	subString(srcFileName, sourceFileName, 0, sourceFileNameLen - FILE_EXTENSION_LEN - 1);
+	srcFileName[sourceFileNameLen - FILE_EXTENSION_LEN] = nullTermination; /* Avoiding issues with strcat. */
 
 	/* Assigning a terminating character at the beginning of each buffer before using strcat. */
-	(*obFileName)[0] = nullTermination;
-	(*entFileName)[0] = nullTermination;
-	(*extFileName)[0] = nullTermination;
+	obFileName[0] = nullTermination;
+	entFileName[0] = nullTermination;
+	extFileName[0] = nullTermination;
 
 	/* Copying the name of the file without the extension into the buffers. */
-	strcat(*obFileName, srcFileName);
-	strcat(*entFileName, srcFileName);
-	strcat(*extFileName, srcFileName);
+	strcat(obFileName, srcFileName);
+	strcat(entFileName, srcFileName);
+	strcat(extFileName, srcFileName);
 
 	/* Assigning the right extension for every output file name. */
-	strcat(*obFileName, OUTPUT_OB_EXTENTION);
-	strcat(*entFileName, OUTPUT_ENT_EXTENTION);
-	strcat(*extFileName, OUTPUT_EXT_EXTENTION);
+	strcat(obFileName, OUTPUT_OB_EXTENTION);
+	strcat(entFileName, OUTPUT_ENT_EXTENTION);
+	strcat(extFileName, OUTPUT_EXT_EXTENTION);
 
 	/* Freeing memory */
 	free(srcFileName);
@@ -634,7 +653,7 @@ void assembleI(FILE *output, unsigned long int address, Operator *operator, char
 	data <<= registerDiffBits; /* Shifting the field 5 bits. */
 	data += rt; /* Inserting the second register into the bit field. */
 	data <<= immediateDiffBits; /* Shifting the field 16 bits. */
-	data += immed; /* Inserting the immediate value into the bit field. */
+	data += ((unsigned short)immed); /* Inserting the immediate value into the bit field. */
 
 	/* Writing the memory address into the output file. */
 	fprintf(output, "%04ld ", address);
@@ -654,7 +673,7 @@ void assembleI(FILE *output, unsigned long int address, Operator *operator, char
 }
 
 void assembleJ(FILE *output, unsigned long int address, Operator *operator, char isRegister, unsigned long int addressValue) {
-	const char addressDiffBits = 24; /* The size of the address in the bit field. */
+	const char addressDiffBits = 25; /* The size of the address in the bit field. */
 	const char bitSectionSize = 8; /* The size of every section in the bit field. */
 	unsigned long int data = 0; /* The bit field. */
 	unsigned char bitSection; /* To hold divided sections from the bit field. */
@@ -723,6 +742,7 @@ void assembleData(char *dataSegment, unsigned long int *startIndex, const Expect
 			dataSegment[(*startIndex)++] = (argument >>= byteSize);
 			dataSegment[(*startIndex)++] = (argument >> byteSize);
 		}
+		argsIndex++;
 	}
 }
 
@@ -745,13 +765,17 @@ void writeDataSegment(FILE *output ,const unsigned long int dc, char *dataSegmen
 	const char assembledLineSize = 4; /* The size for the bit field in the output file. */
 	int index = 0; /* Starting from the beginning of the data segment. */
 
+	if (dc == 0)
+		return; /* If the data segment is empty then there is nothing to write. */
+
+	fprintf(output, "%04ld", address); /* Writing the address for the first line in the loop. */
 	/* Copying all the data segment into the output file. */
 	while (index < dc) {
 		/* Writing every character in hexadecimal format. */
-		fprintf(output, "%02X", dataSegment[index++]);
+		fprintf(output, " %02X", ((unsigned char)dataSegment[index++]));
 		address++; /* Incrementing the total address. */
 		if (address % assembledLineSize == 0) 
 			/* Every 4 bytes, printing the address in decimal format. */
-			fprintf(output, "\n%04ld ", address);
+			fprintf(output, "\n%04ld", address);
 	}
 }

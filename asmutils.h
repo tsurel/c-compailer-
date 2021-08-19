@@ -195,8 +195,6 @@ Flag getWord(char *sourceLine, Expectation *expecting, int *index, char *word);
  * Returns SUCCESS if the given file name is a valid assembly source code
  * name and ERROR otherwise.
  */
-
-
 Code isValid(const char *fileName);
 
 #endif

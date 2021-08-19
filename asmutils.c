@@ -724,6 +724,11 @@ Flag rangeIParam(char *sourceLine, Expectation *expecting, int *startIndex, int 
 	/* Checking if an issue was found. */
 	if (endStatus != NoIssueFlag || (*expecting != ExpectDigitOrEnd && *expecting != ExpectLabel))
 		*startIndex = *endIndex = index; /* Getting the position of the issue. */
+
+	if (endStatus == NoIssueFlag && *expecting == ExpectLabel && !isOnLabel) { /* Checking for an edge case where a line ends before the last operand. */
+		*startIndex = *endIndex = index; /* Getting the position of the issue. */
+		endStatus = IllegalSymbolFlag;
+	}
 	return endStatus;
 }
 

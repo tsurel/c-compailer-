@@ -70,10 +70,10 @@ Event errCheckLine(const char *fileName, const char *sourceLine, unsigned long i
 
 	/* Figuring the error message. */
 	if (status == WarningLineLengthFlag) {
-		printf("Warning: character limit exceeded on this line by %d blank characters\n", length - SOURCE_LINE_LENGTH);
+		printf("Warning: character limit exceeded on this line by %d blank characters\n", length - SOURCE_LINE_LENGTH - 1);
 		event = WEvent; /* The event is a warning. */
 	} else if (status == ErrorLineLengthFlag) {
-		printf("Error: character limit exceeded on this line by %d characters\n", length - SOURCE_LINE_LENGTH);
+		printf("Error: character limit exceeded on this line by %d characters\n", length - SOURCE_LINE_LENGTH - 1);
 		event = EEvent; /* The event is an error. */
 	}
 
@@ -97,7 +97,7 @@ void errFatal() {
  * Prints an unexpected token error message.
  */
 void errUnexpected() {
-	printf("Error: unexpected token, delete this token\n");
+	printf("SyntaxError: unexpected token, delete this token\n");
 }
 
 /**
@@ -123,13 +123,13 @@ Event errCheckData(const char *fileName, const char *sourceLine, unsigned long i
 	/* Figuring the error message. */
 	if (status == NoIssueFlag) { /* The line is incomplete. */
 		if (expecting == ExpectDigitOrSign) /* The line ended empty or after a comma. */
-			printf("Error: argument is expected here\n");
+			printf("SyntaxError: argument is expected here\n");
 		else if (expecting == ExpectDigit) /* The line ended after a plus or a minus. */
-			printf("Error: incomplete argument\n");
+			printf("SyntaxError: incomplete argument\n");
 	} else if (status == IllegalSpacingFlag) { /* The line has illegal spacing. */
-		printf("Error: illegal spacing\n");
+		printf("SyntaxError: illegal spacing\n");
 	} else if (status == StrayCommentFlag) { /* There is a semicolon among the arguments. */
-		printf("Error: a comment must have a dedicated line\n");
+		printf("SyntaxError: a comment must have a dedicated line\n");
 	} else if (status == SizeOverflowFlag) { /* One (or more) of the arguments was too large for the specified data instruction. */
 		printf("Warning: argument size is too large, only least significant bytes were scanned\n");
 		event = WEvent; /* The event is a warning. */
@@ -161,13 +161,13 @@ Event errCheckAsciz(const char *fileName, const char *sourceLine, unsigned long 
 	if (status == HardwareErrorFlag) /* An hardware related issue had occurred. */
 		errFatal();
 
-	event = NEvent; /* The event is an error. */
+	event = EEvent; /* The event is an error. */
 	printMsgTitle(fileName, line, index); /* Printing error message title. */
 	/* Figuring the error message. */
 	if (status == NoIssueFlag) { /* ExpectQuote, there is no string, the line is empty. */
-		printf("Error: string is expected\n");
+		printf("SyntaxError: string is expected\n");
 	} else if (status == IncompleteStringFlag) {
-		printf("Error: string definition lacks ending quote\n");
+		printf("SyntaxError: string definition lacks ending quote\n");
 	} else { /* UnexpectedFlag, non-quote characters have appeared before the string. */
 		errUnexpected();
 	}
@@ -197,16 +197,16 @@ Event errCheckR(const char *fileName, const char *sourceLine, unsigned long int 
 	/* Figuring the error message. */
 	if (status == NoIssueFlag) {
 		if (expecting == ExpectDollarSign) { /* The line ended before all operands were declared. */
-			printf("Error: operand is expected\n");
+			printf("SyntaxError: operand is expected\n");
 		} else if (expecting == ExpectDigitOrComma || expecting == ExpectComma) { /* The line ended before all operands were declared. */
-			printf("Error: missing operands, operand separation ',' is expected\n");
+			printf("SyntaxError: missing operands, operand separation ',' is expected\n");
 		} else { /* ExpectDigit, nothing after a dollar sign. */
-			printf("Error: incomplete operand\n");
+			printf("SyntaxError: incomplete operand\n");
 		}
 	} else if (status == IllegalSpacingFlag) { /* Spaces are not allowed between a dollar sign and register address. */
-		printf("Error: illegal spacing, spacing is not allowed after this token\n");
+		printf("SyntaxError: illegal spacing, spacing is not allowed after this token\n");
 	} else if (status == StrayCommentFlag) { /* Found a semicolon on a code line. */
-		printf("Error: a comment must have a dedicated line\n");
+		printf("SyntaxError: a comment must have a dedicated line\n");
 	} else if (status == InvalidRegisterFlag) { /* Found a defined register with invalid address. */
 		printf("Error: invalid register address, valid addresses are 0 - 31\n");
 		index = -1; /* To print the line without the pointer underneath. */
@@ -242,21 +242,22 @@ Event errCheckI(const char *fileName, const char *sourceLine, unsigned long int 
 	/* Figuring the error message. */
 	if (status == NoIssueFlag) {
 		if (expecting == ExpectDollarSign) { /* The line ended with missing operand(s). */
-			printf("Error: operand is expected\n");
+			printf("SyntaxError: operand is expected\n");
 		} else if (expecting == ExpectDigitOrComma || expecting == ExpectComma) { /* The line ended before all operands were declared. */
-			printf("Error: missing operands, operand separation ',' is expected\n");
+			printf("SyntaxError: missing operands, operand separation ',' is expected\n");
 		} else { /* ExpectDigit, ExpectDigitOrSignOrDollarSign, The line ended with an incomplete operand. */
-			printf("Error: incomplete operand, digit is expected\n");
+			printf("SyntaxError: incomplete operand, digit is expected\n");
 		} 
 	} else if (status == IllegalSpacingFlag) { /* Spaces are not allowed between a dollar sign and register address as well as between signs and digits. */
-		printf("Error: illegal spacing, spacing is not allowed after this token\n");
+		printf("SyntaxError: illegal spacing, spacing is not allowed after this token\n");
 	} else if (status == StrayCommentFlag) { /* Found a semicolon on a code line. */
-		printf("Error: a comment must have a dedicated line\n");
+		printf("SyntaxError: a comment must have a dedicated line\n");
 	} else if (status == SizeOverflowFlag) { /* The immediate value was too large. */
 		printf("Warning: argument size is too large, only least significant bytes were scanned\n");
 		event = WEvent; /* This is a warning event. */
+		index = -1; /* To print the line without the pointer underneath. */
 	} else if (status == IllegalSymbolFlag) { /* The specified symbol is illegal. */
-		printf("Error: The specified symbol is illegal\n");
+		printf("SyntaxError: The specified symbol is illegal\n");
 	} else if (status == InvalidRegisterFlag) { /* Found a defined register with invalid address. */
 		printf("Error: invalid register address, valid addresses are 0 - 31\n");
 		index = -1; /* To print the line without the pointer underneath. */
@@ -292,16 +293,16 @@ Event errCheckJ(const char *fileName, const char *sourceLine, unsigned long int 
 	/* Figuring the error message. */
 	if (status == NoIssueFlag) {
 		if (expecting == ExpectDollarSign) { /* The line ended with missing operand (the operand could also be a label). */
-			printf("Error: operand is expected\n");
+			printf("SyntaxError: operand is expected\n");
 		} else { /* ExpectDigit, The line ended with incomplete operand. */
-			printf("Error: incomplete operand\n");
+			printf("SyntaxError: incomplete operand\n");
 		}
 	} else if (status == IllegalSpacingFlag) { /* Spaces are not allowed between a dollar sign and register address. */
-		printf("Error: illegal spacing, spacing is not allowed after this token\n");
+		printf("SyntaxError: illegal spacing, spacing is not allowed after this token\n");
 	} else if (status == StrayCommentFlag) { /* Found a semicolon on a code line. */
-		printf("Error: a comment must have a dedicated line\n");
+		printf("SyntaxError: a comment must have a dedicated line\n");
 	} else if (status == IllegalSymbolFlag) { /* The specified symbol is illegal. */
-		printf("Error: The specified symbol is illegal\n");
+		printf("SyntaxError: The specified symbol is illegal\n");
 	} else if (status == InvalidRegisterFlag) { /* Found a defined register with invalid address. */
 		printf("Error: invalid register address, valid addresses are 0 - 31\n");
 	} else { /* StrayDollarSignFlag, StrayDigitFlag, UnexpectedFlag, Tokens should not be there. */
@@ -337,7 +338,7 @@ Event errCheckWord(const char *fileName, const char *sourceLine, unsigned long i
 	printMsgTitle(fileName, line, index); /* Printing error message title. */
 	/* Figuring the error message. */
 	if (status == IllegalSpacingFlag) { /* Illegal spacing can be returned only it there was a space after a dot. */
-		printf("Error: Illegal spacing, data instructor is expected\n");
+		printf("SyntaxError: Illegal spacing, data instructor is expected\n");
 	} else if (status == StrayCommentFlag || status == UnexpectedFlag || status == StrayDigitFlag) { /* Found a semicolon on a code line. */
 		errUnexpected();
 	} else if (status == IllegalSymbolFlag)
@@ -381,7 +382,7 @@ Event errCheckSymbol(SymbolTable *symbolTable, const char *fileName, const char 
  */
 void errLonelyLabel(const char *fileName, const char *sourceLine, unsigned long int line) {
 	printMsgTitle(fileName, line, 0); /* Printing error message title. */
-	printf("Error: this line has a label but no code\n");
+	printf("Error: this line is labeled but empty\n");
 	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
 }
 
@@ -391,7 +392,7 @@ void errLonelyLabel(const char *fileName, const char *sourceLine, unsigned long 
  */
 void errInvalidKeyword(const char *fileName, const char *sourceLine, const char *word, unsigned long int line) {
 	printMsgTitle(fileName, line, 0); /* Printing error message title. */
-	printf("Error: unknown keyword '%s'\n", word);
+	printf("SyntaxError: unknown keyword '%s'\n", word);
 	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
 }
 
@@ -403,11 +404,11 @@ void errInvalidArgumentSet(const char *fileName, const char *sourceLine, unsigne
 	printMsgTitle(fileName, line, 0); /* Printing error message title. */
 	if (typeOperator == I) { /* Printing message for I operators. */
 		if (isSpecialSet)
-			printf("Error: invalid argument set, should be: register, register, label\n");
+			printf("SyntaxError: invalid argument set, should be: register, register, label\n");
 		else
-			printf("Error: invalid argument set, should be: register, immediate, register\n");
+			printf("SyntaxError: invalid argument set, should be: register, immediate, register\n");
 	} else if (typeOperator == J) /* Printing message for J operators. */
-		printf("Error: invalid argument set, should be: label\n");
+		printf("SyntaxError: invalid argument set, should be: label\n");
 	printLine(sourceLine, line, -1); /* Printing the line without the pointer underneath. */
 }
 
@@ -446,7 +447,7 @@ Event errCheckExpectLabel(const char *fileName, const char *sourceLine, const ch
 	printMsgTitle(fileName, line, index); /* Printing error message title. */
 	/* Figuring the error message. */
 	if ((status == OperatorFlag && expecting == ExpectWord) || symbol == NULL) /* Checking if there is a label at all. */
-		printf("Error: label is expected\n"); /* The line is empty or there is an unexpected token. */
+		printf("SyntaxError: label is expected\n"); /* The line is empty or there is an unexpected token. */
 	else
 		printf("SyntaxError: label is expected, replace this token\n"); /* Everything else is unexpected. */
 	printLine(sourceLine, line, index); /* Printing the line. */

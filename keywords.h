@@ -85,7 +85,4 @@ Code initasmKeywords();
  */
 void clearasmKeywords();
 
-
-void printasm();
-
 #endif

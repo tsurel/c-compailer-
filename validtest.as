@@ -99,13 +99,13 @@ thing:	.entry		DoLABELl2
 		call	EXT2
 		call	EXT2		
 
-LongButStilla1234567ValidLabel: stop
+LongButStilla12345678ValidLabel: stop
 ; a vaild Label:
 Blt:	stop
 ; another vaild Label:
 AsciZ:	stop
 
-.asciz "A long but a valid line. she has only 80 characters. that the maximum!!"
+.asciz "A long but a valid line. it has only 80 characters. that's the maximum!"
 
 jmp thing2
 

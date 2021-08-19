@@ -8,15 +8,6 @@
  */
 
 /**
- * Skips the current line of the given file stream without storing it.
- */
-void skipln(FILE *stream) {
-	char c;
-	/* Reading every digit from the provided stream until hitting a new line or an end of file character. */
-	for (c = fgetc(stream); c != '\n' && c != EOF; c = fgetc(stream));
-}
-
-/**
  * Copies a sub-string from the source parameter into the destination parameter,
  * starting from the given start index until the given end index (included).
  */

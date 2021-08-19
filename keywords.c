@@ -275,19 +275,3 @@ void clearasmKeywords() {
 	for (index = 0; index < INS_COUNT; index++)
 		free(instructors[index]);
 }
-
-void printasm() {
-	int i;
-	Operator *temp;
-	for (i = 0; i < OP_COUNT; i++) {
-		printf("[%d]:\n", i);
-		temp = operators[i];
-		printf("\t%s: type = %d, funct = %d, opcode = %d\n", temp->keyword, temp->type, temp->funct, temp->opcode);
-	}
-	printf("\n");
-	for (i = 0; i < INS_COUNT; i++){
-		printf("[%d]:\n", i);
-		printf("\t%s: expecting = %d\n", instructors[i]->keyword, instructors[i]->expecting);
-	}
-	printf("\n");
-}
